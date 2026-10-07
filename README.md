@@ -1,46 +1,81 @@
 # Claude Mods
 
-Mods for [Claude Code](https://claude.com/claude-code).
+**English** · [Português](README.pt-BR.md)
 
-## zen-toolbox: extra-mods
+Mods for [Claude Code](https://claude.com/claude-code). One plugin, `zen-toolbox`, adds an **◆ extra-mods ▲** button in the bottom-right corner, under the prompt. It opens a sidebar with four tools:
 
-A **◆ extra-mods ▲** button in the bottom-right corner, at the end of the hint line under the prompt. Click it, or type `/tools`, to open the menu in a pane. In the fullscreen layout the pane is a sidebar on the right; in other layouts it opens as a block above the prompt. The pane takes the keyboard: **↑↓** move, **Enter** selects, **b** goes back and **Esc** closes.
+| Tool | What it does |
+|---|---|
+| **Zen mode** | Hides tool calls and their output, and shows Claude's plan as a progress band above the prompt |
+| **Theme** | Recolors the whole terminal with any theme from [terminalcolors.com](https://terminalcolors.com), with live preview |
+| **Mode** | Sets the effort level, and the permission mode new sessions start in |
+| **Status line** | Model, folder, branch, context, 5h/7d limits and cache state, with the button on the same row |
+
+## Install
+
+You need Claude Code 2.1.292 or newer. Run these in a terminal:
+
+```
+claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods
+claude plugin install zen-toolbox@jdsjh-mods --scope user
+```
+
+Then start a new Claude Code session, or run `/reload-plugins` in an open one. The button shows up at the bottom right of every session.
+
+### Install with an AI agent
+
+You can point your coding agent at this repository and ask it to install the mod. The steps below are written for the agent.
+
+> **Agent instructions.** Follow these steps in order. Ask the user before step 4 or step 5, because those change their settings.
+>
+> 1. Check Claude Code is installed and recent enough: run `claude --version`. It must print 2.1.292 or higher. If it doesn't, stop and tell the user to update Claude Code.
+> 2. Add this repository as a plugin marketplace: run `claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods`. It should print `Successfully added marketplace: jdsjh-mods`. If the marketplace already exists, continue.
+> 3. Install the plugin for all sessions: run `claude plugin install zen-toolbox@jdsjh-mods --scope user`. It should print `Successfully installed plugin: zen-toolbox@jdsjh-mods`.
+> 4. *Optional, ask first:* hide the account email and organization name in Claude Code's header (demo mode). Set the environment variable `IS_DEMO=1` permanently for the user: on Windows run `setx IS_DEMO 1`; on macOS or Linux add `export IS_DEMO=1` to the shell profile (`~/.zshrc` or `~/.bashrc`).
+> 5. *Optional, ask first, and only if the user does not want the mod's built-in status line:* install the standalone status line script. Copy `statusline/statusline.py` from this repository to `~/.claude/statusline.py`. Then in `~/.claude/settings.json` set `"statusLine": { "type": "command", "command": "python ~/.claude/statusline.py", "refreshInterval": 2 }` (use `python3` on macOS and Linux). It needs Python 3.
+> 6. Verify: run `claude plugin list`. `zen-toolbox` must be listed and enabled.
+> 7. Tell the user to run `/reload-plugins` or start a new session, then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
+>
+> On Windows, write paths with forward slashes (`C:/Users/...`) when a command runs in a POSIX shell such as Git Bash.
+
+## Using it
+
+Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude Code's fullscreen layout it docks on the right; otherwise it opens above the prompt. The sidebar takes the keyboard: **↑↓** move, **Enter** selects, **b** goes back, **Esc** closes. Its background follows your terminal's.
 
 ### 1. Zen mode
 
 - Hides every tool call and its output. You see only what Claude writes.
-- Gives Claude a `zen_progress` tool and asks it, with every prompt you send, to post its plan and update it as each step starts and finishes.
-- Shows a progress band above the prompt with the task, the current step, a progress bar, the percentage and the elapsed time. `[–]` shrinks it to one line.
-- Band colours: `blue`, `dark`, `light`, `green`, `rainbow`, or `custom` with your own hex colours for the bar, text and border.
+- Gives Claude a `zen_progress` tool and asks it, with every prompt you send, to post its plan first and update it as each step starts and finishes.
+- Shows a progress band above the prompt: the task, the current step, a progress bar, the percentage and the elapsed time. `[–]` shrinks it to one line.
+- Band colors: `blue`, `dark`, `light`, `green`, `rainbow`, or `custom` with your own hex colors.
 
 ### 2. Theme
 
-- The first time you open it, it scrapes every theme on terminalcolors.com and saves its YAML to `~/.claude/zen-toolbox/themes/`.
-- Arrowing through the list **previews** each theme on the whole terminal window. **Enter** keeps one; leaving without keeping puts your kept theme back.
-  - **Windows:** the mod writes the theme into Windows Terminal's `settings.json` as a colour scheme and points the current profile (`WT_PROFILE_ID`) at it. Windows Terminal reloads the file and repaints the window. It saves a backup first, as `settings.json.zen-toolbox.bak`.
-  - **macOS / Linux:** the mod sends OSC colour sequences to the terminal and applies them again at every session start. Works in iTerm2, Ghostty, kitty, WezTerm, Alacritty and most other modern terminals.
-- **Reset colors** puts back your original colours.
+- The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/zen-toolbox/themes/`.
+- Moving through the list with the arrow keys or the mouse wheel **previews** each theme on the whole window. **Enter** keeps one. Leaving without keeping one puts your kept theme back.
+  - **Windows Terminal:** the theme is written into Windows Terminal's `settings.json` as a color scheme for the current profile. A backup is saved first, as `settings.json.zen-toolbox.bak`.
+  - **macOS / Linux:** the colors are sent to the terminal as OSC sequences, and applied again at each session start. Works in iTerm2, Ghostty, kitty, WezTerm, Alacritty and most modern terminals.
+- **Reset** puts your original colors back.
 
 ### 3. Mode
 
-- **Effort:** `low` / `medium` / `high` / `xhigh` / `max`. Applies to every request from then on and is remembered across sessions.
-- **Running in:** the current permission mode. Claude Code doesn't let mods switch the mode of a running session, so use **shift+tab** for that.
-- **New sessions:** sets `permissions.defaultMode` in `~/.claude/settings.json` (ask, plan, accept edits, auto or bypass permissions). The mod saves a backup first, as `settings.json.zen-toolbox.bak`.
+- **Effort:** `low` / `medium` / `high` / `xhigh` / `max`. The level the session is using is marked. A level you pick applies to every request from then on, and is remembered.
+- **Running in:** the current permission mode. A mod can't switch the mode of a running session, so use **shift+tab** for that.
+- **New sessions start in:** ask, plan, accept edits, auto or bypass permissions, each in Claude Code's own color. The current mode is marked **· now**. Your pick is saved as `permissions.defaultMode` in `~/.claude/settings.json` (backed up first).
 
 ### 4. Status line
 
-- Draws the status line under the prompt:
-  - first row: the model, the folder and the git branch
-  - second row: context, the 5h and 7d limits with their reset times, and the cache state, with **◆ extra-mods** at the end of the same row
-- The cache shows a green **● cache ok** while Claude's last response is under an hour old, and a red **● cache over** after that.
+- Row 1: the model, the folder and the git branch.
+- Row 2: context, the 5h and 7d limits with their reset times, and the cache state, with **◆ extra-mods** at the end of the same row.
+- **● cache ok** (green) while Claude's last response is under an hour old; **● cache over** (red) after that.
 - When the terminal narrows, the bars go first, then the reset times.
-- **On** takes your own `statusLine` command out of `~/.claude/settings.json`, so the two don't stack. It saves a backup first, as `settings.json.zen-toolbox.bak`. **Off** puts your command back.
+- **On** takes your own `statusLine` command out of `~/.claude/settings.json` so the two don't stack (backed up first). **Off** puts it back.
 
-## Install
+`statusline/statusline.py` is the same status line as a standalone script, for Claude Code setups without the mod (see step 5 of the agent instructions).
 
-```
-/plugin install zen-toolbox --marketplace <owner>/ClaudeMods
-```
+## Privacy
+
+Claude Code's demo mode hides your email and organization name from the header and from `/status`. Turn it on permanently with `setx IS_DEMO 1` on Windows, or `export IS_DEMO=1` in your shell profile on macOS and Linux.
 
 ## Develop
 

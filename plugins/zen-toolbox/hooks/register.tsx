@@ -413,15 +413,29 @@ async function trackMode($: EngineInterface, current: string | undefined) {
   if (current !== undefined && current !== (await read($, mode))) await update($, mode, () => current)
 }
 
-// The session's own effort level, as /config has it, before any request.
+// The session's own effort level before any request. First match wins: a
+// /config row, the effortLevel setting, CLAUDE_EFFORT, the last level seen.
 async function loadSessionEffort($: EngineInterface) {
+  const found: unknown[] = []
   try {
-    const row = (await $.config.list()).find(r => /effort/i.test(r.key))
-    if (typeof row?.value === 'string' && EFFORTS.includes(row.value as Effort)) {
-      const level = row.value as Effort
-      await update($, sessionEffort, () => level)
-    }
+    found.push((await $.config.list()).find(r => /effort/i.test(r.key))?.value)
   } catch {}
+  try {
+    found.push(((await $.settings.read()) as { effortLevel?: unknown }).effortLevel)
+  } catch {}
+  found.push(await $.env.get('CLAUDE_EFFORT'))
+  found.push(await $.store.get('lastSessionEffort'))
+  const level = found.find((v): v is Effort => typeof v === 'string' && EFFORTS.includes(v as Effort))
+  if (level !== undefined) await update($, sessionEffort, () => level)
+}
+
+// Records the level a request actually ran at, as the engine reports it.
+async function trackEffort($: EngineInterface, level: unknown) {
+  if (typeof level !== 'string' || !EFFORTS.includes(level as Effort)) return
+  const own = level as Effort
+  if (own === (await read($, sessionEffort))) return
+  await update($, sessionEffort, () => own)
+  await $.store.set('lastSessionEffort', own)
 }
 
 async function loadSettings($: EngineInterface) {
@@ -1152,10 +1166,7 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     const level = await read($, effort)
     // The session's own level, as the engine would send it, before ours replaces it.
-    if (e.agentId === undefined && typeof e.effort === 'string' && e.effort !== (await read($, sessionEffort))) {
-      const own = e.effort
-      await update($, sessionEffort, () => own)
-    }
+    if (e.agentId === undefined) await trackEffort($, e.effort)
     const answered = yield* next(level !== null && e.effort !== undefined ? { ...e, effort: level } : e)
     // The main loop's responses keep the prompt cache warm; subagents' do not.
     if (e.agentId === undefined && answered.usage !== null) {
@@ -1174,6 +1185,8 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
   on('classic.PostToolUse', async ($, e, next) => {
     await trackMode($, e.permission_mode)
+    // With an override of ours this reports ours, so only record without one.
+    if ((await read($, effort)) === null) await trackEffort($, e.effort?.level)
     return next(e)
   }).catch(($, e, next) => next(e))
 }
