@@ -54,8 +54,8 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 
 - Na primeira vez que você abre, ele baixa todos os temas do terminalcolors.com para `~/.claude/zen-toolbox/themes/`.
 - Percorrer a lista com as setas ou a roda do mouse mostra uma **prévia** de cada tema na janela inteira. **Enter** escolhe um. Sair sem escolher volta ao tema que você já tinha.
-  - **Windows Terminal:** o tema é gravado no `settings.json` do Windows Terminal como o esquema de cores padrão que todos os perfis herdam, então toda janela nova já abre com ele. Os esquemas que sobram das prévias são removidos. Um backup é salvo antes, como `settings.json.zen-toolbox.bak`, e o **Reset** volta às cores dele.
-  - **macOS / Linux:** as cores são enviadas ao terminal como sequências OSC, e aplicadas de novo a cada início de sessão. Funciona no iTerm2, Ghostty, kitty, WezTerm, Alacritty e na maioria dos terminais modernos.
+  - **Windows Terminal:** o tema só colore o Claude Code. Quando uma sessão começa, ele é gravado no `settings.json` do Windows Terminal como esquema de cores do perfil em que o Claude Code está rodando. Quando a sessão termina, o perfil volta às cores dele. Outras abas do mesmo perfil também pegam o tema enquanto o Claude Code está aberto. Um backup é salvo antes, como `settings.json.zen-toolbox.bak`.
+  - **macOS / Linux:** as cores são enviadas ao terminal como sequências OSC quando a sessão começa, e resetadas quando ela termina. Funciona no iTerm2, Ghostty, kitty, WezTerm, Alacritty e na maioria dos terminais modernos.
 - **Reset** volta às suas cores originais.
 
 ### 3. Modo
@@ -80,6 +80,7 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 - **Vale a partir da próxima sessão.** O Claude Code lê a variável `IS_DEMO` uma vez só, quando inicia, então a sessão em que você muda continua como estava. A página mostra os dois: **New sessions** (o botão) e **This session** (o que está valendo agora).
 - **On** adiciona `IS_DEMO=1` ao bloco `env` de `~/.claude/settings.json` (com backup antes).
 - **Off** remove de lá. No Windows, também remove a variável de usuário `IS_DEMO` se ela tiver sido criada com `setx`, porque qualquer valor já ativa o modo demo.
+- **Atenção:** o modo demo pula a pergunta de confiança na pasta. Enquanto uma pasta não é confiável, o Claude Code não carrega plugins (o extra-mods também) nem a linha de status. A sua pasta de usuário nunca fica confiável de vez: o Claude Code pergunta de novo a cada abertura. Então, com o modo demo ligado, abra o Claude Code numa pasta de projeto que você já marcou como confiável uma vez, com o modo demo desligado.
 
 ## Desenvolvimento
 

@@ -238,10 +238,11 @@ async function wtSettingsPath($: EngineInterface, profileId: string | null) {
   return first
 }
 
-// Windows: writes the scheme into Windows Terminal's settings as the default
-// every profile inherits, so every new window opens in it; Windows Terminal
-// reloads the file and repaints. The backup, taken before the mod's first
-// change, holds the original colors a reset puts back.
+// Windows: writes the scheme into Windows Terminal's settings for the profile
+// this Claude Code runs in, and Windows Terminal repaints. The theme is only
+// meant for Claude Code: it goes on at session start and comes off (null) at
+// session end. The backup, taken before the mod's first change, holds the
+// original colors that null puts back; the defaults always keep theirs.
 async function applyWindowsTerminal($: EngineInterface, palette: Palette | null) {
   const profileId = (await $.env.get('WT_PROFILE_ID')) ?? null
   const path = await wtSettingsPath($, profileId)
@@ -263,16 +264,14 @@ async function applyWindowsTerminal($: EngineInterface, palette: Palette | null)
     else target.colorScheme = value
   }
 
+  // Other profiles never change (an older version set the theme on the defaults).
+  if (profile !== defaults) setScheme(defaults, originalDefaults.colorScheme)
   if (palette === null) {
-    setScheme(defaults, originalDefaults.colorScheme)
-    if (profile !== defaults) setScheme(profile, originalProfile.colorScheme)
+    setScheme(profile, originalProfile.colorScheme)
   } else {
     const scheme = toWtScheme(palette)
     settings.schemes = [...(settings.schemes ?? []).filter(s => s.name !== scheme.name), scheme]
-    setScheme(defaults, scheme.name)
-    // A profile with its own scheme would hide the default: give it ours too.
-    // One without inherits it (an older version of the mod set it there).
-    if (profile !== defaults) setScheme(profile, originalProfile.colorScheme === undefined ? undefined : scheme.name)
+    setScheme(profile, scheme.name)
   }
 
   // Previews leave schemes behind: keep the mod's only while a profile uses one.
@@ -393,10 +392,14 @@ async function loadThemes($: EngineInterface) {
   const saved = (await $.store.get('theme')) as { slug: string; name: string } | undefined
   if (saved === undefined) return
   await update($, themeName, () => saved.name)
-  // OSC colors last only as long as the terminal does; put them back.
-  if (!(await isWindows($)) && list.some(t => t.slug === saved.slug)) {
-    void applyTheme($, saved.slug).catch(() => {})
-  }
+  // The theme is Claude Code's alone: on as a session starts, off as it ends.
+  if (list.some(t => t.slug === saved.slug)) void paintTerminal($, saved.slug).catch(() => {})
+}
+
+// As the session ends, the terminal gets its own colors back.
+async function unpaintTerminal($: EngineInterface) {
+  if ((await $.store.get('theme')) === undefined && (await read($, preview)) === null) return
+  await paintTerminal($, null)
 }
 
 // Mode and effort --------------------------------------------------------------
@@ -855,6 +858,11 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
         <Text color={isNow ? STATUS_GREEN : undefined}>{isNow ? '● on' : '○ off'}</Text>
         <Text dimColor> · Claude Code reads it at start, so a change shows in your next session</Text>
       </Text>,
+      <Text key="privacy-trust" color="warning">
+        Demo mode skips the folder trust prompt. In a folder you have not trusted yet, and always in your home folder,
+        Claude Code then loads no plugins (extra-mods included) and no status line. Start Claude Code in a project
+        folder you have trusted once.
+      </Text>,
     ])
   }
 
@@ -1057,6 +1065,13 @@ async function startTask($: EngineInterface, title: string) {
 // Watching hooks end in .catch(... next(e)): when one fails, the event goes on.
 
 export const register: Register = on => {
+
+  on('session.end', async ($, e, next) => {
+    try {
+      await unpaintTerminal($)
+    } catch {}
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)

@@ -54,8 +54,8 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 
 - The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/zen-toolbox/themes/`.
 - Moving through the list with the arrow keys or the mouse wheel **previews** each theme on the whole window. **Enter** keeps one. Leaving without keeping one puts your kept theme back.
-  - **Windows Terminal:** the theme is written into Windows Terminal's `settings.json` as the default color scheme every profile inherits, so every new window opens in it. Schemes left over from previews are removed. A backup is saved first, as `settings.json.zen-toolbox.bak`, and **Reset** puts its colors back.
-  - **macOS / Linux:** the colors are sent to the terminal as OSC sequences, and applied again at each session start. Works in iTerm2, Ghostty, kitty, WezTerm, Alacritty and most modern terminals.
+  - **Windows Terminal:** the theme only colors Claude Code. When a session starts, it's written into Windows Terminal's `settings.json` as the color scheme of the profile Claude Code runs in. When the session ends, that profile gets its own colors back. Other tabs on the same profile take the theme while Claude Code runs. A backup is saved first, as `settings.json.zen-toolbox.bak`.
+  - **macOS / Linux:** the colors are sent to the terminal as OSC sequences when a session starts, and reset when it ends. Works in iTerm2, Ghostty, kitty, WezTerm, Alacritty and most modern terminals.
 - **Reset** puts your original colors back.
 
 ### 3. Mode
@@ -80,6 +80,7 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 - **It applies from your next session.** Claude Code reads the `IS_DEMO` variable once, when it starts, so the session you change it in stays as it was. The page shows both: **New sessions** (the toggle) and **This session** (what's in effect now).
 - **On** adds `IS_DEMO=1` to the `env` block of `~/.claude/settings.json` (backed up first).
 - **Off** removes it there. On Windows, it also removes the `IS_DEMO` user variable if one was set with `setx`, because any value at all turns demo mode on.
+- **Warning:** demo mode skips the folder trust prompt. Until a folder is trusted, Claude Code loads no plugins (extra-mods included) and no status line. Your home folder is never trusted for good: Claude Code asks again on every launch there. So with demo mode on, start Claude Code in a project folder you trusted once, with demo mode off.
 
 ## Develop
 
