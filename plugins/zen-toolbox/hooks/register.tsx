@@ -1,8 +1,22 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, RenderInput, Timer } from 'claude-code'
 
-import type { Effort, Panel, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
+import type { Effort, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
 import { EFFORTS, type Mode, MODES, modeLabel } from './lib/modes'
+import {
+  BAR_WIDTH,
+  barFill,
+  cacheState,
+  colorFor,
+  type Detail,
+  fmtDuration,
+  fmtTokens,
+  LIMIT_LABELS,
+  STATUS_CYAN,
+  STATUS_GREEN,
+  STATUS_RED,
+  statsWidth,
+} from './lib/status'
 import {
   matchAll,
   oscFor,
@@ -49,6 +63,13 @@ const mode = atom({ plugin: 'zen-toolbox', key: 'mode' } as const, null)
 const defaultMode = atom({ plugin: 'zen-toolbox', key: 'defaultMode' } as const, null)
 const preview = atom({ plugin: 'zen-toolbox', key: 'preview' } as const, null)
 const isDownloading = atom({ plugin: 'zen-toolbox', key: 'isDownloading' } as const, false)
+const sessionEffort = atom({ plugin: 'zen-toolbox', key: 'sessionEffort' } as const, null)
+const paneBg = atom({ plugin: 'zen-toolbox', key: 'paneBg' } as const, null)
+const defaultModeChosen = atom({ plugin: 'zen-toolbox', key: 'defaultModeChosen' } as const, false)
+const statusOn = atom({ plugin: 'zen-toolbox', key: 'statusOn' } as const, false)
+const status = atom({ plugin: 'zen-toolbox', key: 'status' } as const, null)
+const lastResponseAt = atom({ plugin: 'zen-toolbox', key: 'lastResponseAt' } as const, null)
+const statusClock = atom({ plugin: 'zen-toolbox', key: 'statusClock' } as const, 0)
 
 // The menu's pane: a sidebar in the fullscreen layout, a block above the prompt otherwise.
 // Claude's progress tool, as the model calls it.
@@ -56,8 +77,35 @@ const ZEN_TOOL = 'mcp__zen-toolbox__zen_progress'
 
 const PANE = 'claude-tools'
 const PANE_SIZE = { rows: 26, columns: 56 }
-// Just short of pure black.
+// Used until the terminal's own background is known: just short of pure black.
 const PANE_BACKGROUND = '#0b0b0b'
+const MENU_NAME = 'extra-mods'
+
+// Windows Terminal's built-in schemes, by name: their backgrounds.
+const WT_BUILTIN_BACKGROUNDS: Record<string, string> = {
+  Campbell: '#0C0C0C',
+  'Campbell Powershell': '#012456',
+  'Dark+': '#1E1E1E',
+  Dimidium: '#141414',
+  'One Half Dark': '#282C34',
+  'One Half Light': '#FFFFFF',
+  Ottosson: '#000000',
+  'Solarized Dark': '#002B36',
+  'Solarized Light': '#FDF6E3',
+  'Tango Dark': '#000000',
+  'Tango Light': '#FFFFFF',
+  Vintage: '#000000',
+}
+
+// Each permission mode in the color Claude Code draws it with.
+const MODE_COLORS: Record<string, string> = {
+  default: 'text',
+  plan: 'planMode',
+  acceptEdits: 'autoAccept',
+  auto: 'warning',
+  dontAsk: 'warning',
+  bypassPermissions: 'error',
+}
 
 const SITE = 'https://terminalcolors.com'
 const HEX = /^#[0-9a-f]{6}$/i
@@ -227,6 +275,38 @@ async function applyOsc($: EngineInterface, palette: Palette | null) {
 }
 
 // Recolors the terminal with a saved theme, or with null its own colors.
+// The background of the terminal Claude Code runs in: Windows Terminal's
+// profile and scheme, else the kept theme's.
+async function terminalBackground($: EngineInterface): Promise<string | null> {
+  if (await isWindows($)) {
+    const profileId = (await $.env.get('WT_PROFILE_ID')) ?? null
+    const path = await wtSettingsPath($, profileId)
+    if (path === null) return null
+    const settings = parseJsonc(await $.fs.read(path)) as WtSettings
+    const profile = targetProfile(settings, profileId) as { background?: unknown; colorScheme?: unknown }
+    if (typeof profile.background === 'string') return profile.background
+    const defaults = (Array.isArray(settings.profiles) ? undefined : settings.profiles?.defaults) as
+      | { background?: unknown; colorScheme?: unknown }
+      | undefined
+    if (typeof defaults?.background === 'string') return defaults.background
+    const raw = profile.colorScheme ?? defaults?.colorScheme ?? 'Campbell'
+    const name = typeof raw === 'string' ? raw : ((raw as { dark?: string }).dark ?? 'Campbell')
+    const scheme = (settings.schemes ?? []).find(sc => sc.name === name) as { background?: unknown } | undefined
+    if (typeof scheme?.background === 'string') return scheme.background
+    return WT_BUILTIN_BACKGROUNDS[name] ?? null
+  }
+  const kept = (await $.store.get('theme')) as { slug: string } | undefined
+  if (kept === undefined) return null
+  return toPalette(await $.fs.read(`${await themesDir($)}/${kept.slug}.yaml`))?.background ?? null
+}
+
+async function refreshPaneBg($: EngineInterface) {
+  try {
+    const bg = await terminalBackground($)
+    await update($, paneBg, () => bg)
+  } catch {}
+}
+
 async function paintTerminal($: EngineInterface, slug: string | null) {
   let palette: Palette | null = null
   if (slug !== null) {
@@ -235,6 +315,9 @@ async function paintTerminal($: EngineInterface, slug: string | null) {
   }
   if (await isWindows($)) await applyWindowsTerminal($, palette)
   else await applyOsc($, palette)
+  // The sidebar follows the terminal's background, previews included.
+  if (palette !== null) await update($, paneBg, () => palette!.background)
+  else await refreshPaneBg($)
   return palette
 }
 
@@ -322,11 +405,23 @@ async function setDefaultMode($: EngineInterface, next: Mode) {
   settings.permissions = { ...settings.permissions, defaultMode: next }
   await $.fs.write(path, `${JSON.stringify(settings, null, 2)}\n`)
   await update($, defaultMode, () => next)
+  await update($, defaultModeChosen, () => true)
   $.ui.toast(`New sessions start in ${modeLabel(next)} mode`)
 }
 
 async function trackMode($: EngineInterface, current: string | undefined) {
   if (current !== undefined && current !== (await read($, mode))) await update($, mode, () => current)
+}
+
+// The session's own effort level, as /config has it, before any request.
+async function loadSessionEffort($: EngineInterface) {
+  try {
+    const row = (await $.config.list()).find(r => /effort/i.test(r.key))
+    if (typeof row?.value === 'string' && EFFORTS.includes(row.value as Effort)) {
+      const level = row.value as Effort
+      await update($, sessionEffort, () => level)
+    }
+  } catch {}
 }
 
 async function loadSettings($: EngineInterface) {
@@ -344,6 +439,70 @@ async function loadSettings($: EngineInterface) {
     const { permissions } = await $.settings.read({ source: 'user' })
     const configured = (permissions as { defaultMode?: string } | undefined)?.defaultMode
     await update($, defaultMode, () => configured ?? 'default')
+  } catch {}
+}
+
+// Status line -------------------------------------------------------------------
+
+// Gathers what the status line draws: the model, the folder and branch, the
+// context window and the rate limits, as Claude Code's own status line has them.
+async function refreshStatus($: EngineInterface) {
+  const [model, cwd, usage] = await Promise.all([$.session.model(), $.session.cwd(), $.session.usage()])
+  let branch = ''
+  try {
+    const ran = await $.process.run(['git', '-C', cwd, 'branch', '--show-current'])
+    if (ran.exitCode === 0) branch = ran.stdout.trim()
+  } catch {}
+  const limits: RateLimit[] = usage.rateLimits
+    .filter(l => LIMIT_LABELS[l.kind] !== undefined)
+    .map(l => ({
+      label: LIMIT_LABELS[l.kind]!,
+      percent: Math.round(l.percentUsed),
+      resetsAt: l.resetsAt === undefined ? null : Date.parse(l.resetsAt),
+    }))
+  const snapshot: StatusSnapshot = {
+    model,
+    dir: cwd.replace(/[\/]+$/, '').split(/[\/]/).pop() || cwd,
+    branch,
+    ctxPercent: usage.context.percent ?? null,
+    ctxTokens: usage.context.tokens ?? null,
+    ctxWindow: usage.context.window,
+    limits,
+  }
+  await update($, status, () => snapshot)
+}
+
+type SavedStatusLine = { statusLine: unknown }
+
+// On: the mod draws the status line, so Claude Code's own statusLine command is
+// taken out of ~/.claude/settings.json (kept, to put back when it goes off).
+async function setStatusOn($: EngineInterface, isOn: boolean) {
+  const path = `${await homeDir($)}/.claude/settings.json`
+  const text = (await $.fs.exists(path)) ? await $.fs.read(path) : '{}'
+  const backup = `${path}.zen-toolbox.bak`
+  if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
+  const settings = JSON.parse(text) as { statusLine?: unknown }
+  const saved = (await $.store.get('savedStatusLine')) as SavedStatusLine | undefined
+  if (isOn && settings.statusLine !== undefined) {
+    await $.store.set('savedStatusLine', { statusLine: settings.statusLine } satisfies SavedStatusLine)
+    delete settings.statusLine
+    await $.fs.write(path, `${JSON.stringify(settings, null, 2)}\n`)
+  } else if (!isOn && saved !== undefined && settings.statusLine === undefined) {
+    settings.statusLine = saved.statusLine
+    await $.fs.write(path, `${JSON.stringify(settings, null, 2)}\n`)
+    await $.store.delete('savedStatusLine')
+  }
+  await update($, statusOn, () => isOn)
+  await $.store.set('statusOn', isOn)
+  if (isOn) await refreshStatus($)
+}
+
+async function loadStatus($: EngineInterface) {
+  const isOn = (await $.store.get('statusOn')) as boolean | undefined
+  if (isOn === true) await update($, statusOn, () => true)
+  await update($, statusClock, () => Date.now())
+  try {
+    await refreshStatus($)
   } catch {}
 }
 
@@ -452,7 +611,7 @@ async function toggleMenu($: EngineInterface, panel: Panel = 'main') {
   }
   await update($, menu, () => panel)
   if (panel === 'themes') void ensureThemes($)
-  await $.ui.open({ id: PANE, title: 'Claude Tools', focus: true, closeOnEscape: true, ...PANE_SIZE })
+  await $.ui.open({ id: PANE, title: MENU_NAME, focus: true, closeOnEscape: true, ...PANE_SIZE })
 }
 
 // The menu, one item per row so the arrow keys walk it top to bottom.
@@ -461,7 +620,8 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   const { Box, Text, Button, Input } = $.ui.resolve(e)
   const isZenOn = await read($, zenOn)
   const zenThemeNow = await read($, zenTheme)
-  const level = await read($, effort)
+  const level = (await read($, effort)) ?? (await read($, sessionEffort))
+  const background = (await read($, paneBg)) ?? PANE_BACKGROUND
   const running = await read($, mode)
   const theme = (await read($, themeName)) ?? 'Terminal default'
 
@@ -481,7 +641,7 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
     <Box
       flexDirection="column"
       paddingX={1}
-      backgroundColor={PANE_BACKGROUND}
+      backgroundColor={background}
       width={e.props.bodyColumns}
       minHeight={e.props.scroll.bodyRows}
     >
@@ -489,7 +649,7 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
         <Text bold color="claude">
           ◆ {title}
         </Text>
-        {title !== 'Claude Tools' && (
+        {title !== MENU_NAME && (
           <Button key="tools-back" plain dimColor hotkey="b" label="← back" onPress={() => goTo($, 'main')} />
         )}
       </Box>
@@ -592,22 +752,57 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
     ])
   }
 
+  if (panel === 'status') {
+    const isOn = await read($, statusOn)
+    return page('Status line', [
+      <Text key="status-about" dimColor>
+        Model, folder and branch, then context, 5h and 7d limits and cache, with extra-mods on the same row.
+      </Text>,
+      heading('Status line'),
+      option('status-on', 'On', isOn, () =>
+        setStatusOn($, true).catch((error: unknown) => $.ui.toast(`Could not turn it on: ${String(error)}`)),
+      ),
+      option('status-off', 'Off', !isOn, () =>
+        setStatusOn($, false).catch((error: unknown) => $.ui.toast(`Could not turn it off: ${String(error)}`)),
+      ),
+      <Text key="status-note" dimColor>
+        On takes your own statusLine command out of settings.json; Off puts it back.
+      </Text>,
+    ])
+  }
+
   if (panel === 'mode') {
-    const next = await read($, defaultMode)
+    // Marked: what this session runs in, until a new-session mode is chosen here.
+    const next = (await read($, defaultModeChosen)) ? await read($, defaultMode) : (running ?? (await read($, defaultMode)))
     return page('Mode', [
       heading('Effort'),
       ...EFFORTS.map(l => option(`effort-${l}`, l, l === level, () => setEffort($, l))),
       heading('Running in'),
       <Text key="mode-running">
-        {running === null ? 'Shown after your next prompt' : modeLabel(running)}
+        {running === null ? (
+          'Shown after your next prompt'
+        ) : (
+          <Text color={MODE_COLORS[running] ?? 'text'}>{modeLabel(running)}</Text>
+        )}
         <Text dimColor> · shift+tab switches it</Text>
       </Text>,
       heading('New sessions start in'),
-      ...MODES.map(m =>
-        option(`default-mode-${m}`, modeLabel(m), m === next, () =>
-          setDefaultMode($, m).catch((error: unknown) => $.ui.toast(`Could not save the mode: ${String(error)}`)),
-        ),
-      ),
+      ...MODES.map(m => (
+        <Box key={`row-default-mode-${m}`} gap={1}>
+          <Button
+            key={`default-mode-${m}`}
+            plain
+            label={m === next ? '●' : '○'}
+            onPress={() =>
+              setDefaultMode($, m).catch((error: unknown) => $.ui.toast(`Could not save the mode: ${String(error)}`))
+            }
+          />
+          <Text color={MODE_COLORS[m] ?? 'text'} bold={m === next}>
+            {modeLabel(m)}
+          </Text>
+          {m === running && <Text dimColor>· now</Text>}
+        </Box>
+      )),
       next === 'bypassPermissions' && (
         <Text key="mode-warning" color="warning">
           Bypass skips every permission check. Claude Code asks you to confirm it when the next session starts.
@@ -629,12 +824,106 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
       <Text dimColor>   {value}</Text>
     </Box>
   )
-  return page('Claude Tools', [
+  return page(MENU_NAME, [
     row('1', 'Zen mode', isZenOn ? `on · ${zenThemeNow} band` : 'off', 'zen'),
     row('2', 'Theme', theme, 'themes'),
     row('3', 'Mode', `${running === null ? '—' : modeLabel(running)} · effort ${level ?? 'default'}`, 'mode'),
+    row('4', 'Status line', (await read($, statusOn)) ? 'on' : 'off', 'status'),
   ])
 }
+
+// The area under the prompt: with the status line on, its rows with the Claude
+// Tools button at the end of the stats row; otherwise the hint line and the button.
+async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) {
+  const { Box, Text, Button } = $.ui.resolve(e)
+  const isOpen = (await read($, menu)) !== null
+  const label = `◆ ${MENU_NAME} ${isOpen ? '▼' : '▲'}`
+  const button = <Button key="tools-toggle" plain label={label} onPress={() => toggleMenu($)} />
+  const snapshot = (await read($, statusOn)) ? await read($, status) : null
+
+  if (snapshot === null) {
+    return (
+      <Box justifyContent="space-between" width="100%" gap={1}>
+        <Text dimColor wrap="truncate">
+          {e.props.hint}
+        </Text>
+        {button}
+      </Box>
+    )
+  }
+
+  const now = await read($, statusClock)
+  const cache = cacheState(await read($, lastResponseAt), now)
+  const columns = e.viewport?.columns ?? 120
+  const sep = <Text dimColor>{'  │  '}</Text>
+  const bar = (percent: number, color: string) => (
+    <Text>
+      <Text color={color}>{'█'.repeat(barFill(percent))}</Text>
+      <Text dimColor>{'░'.repeat(BAR_WIDTH - barFill(percent))}</Text>{' '}
+    </Text>
+  )
+
+  const ctxPercent = Math.round(snapshot.ctxPercent ?? 0)
+  const ctxTokens =
+    snapshot.ctxTokens === null ? '' : ` ${fmtTokens(snapshot.ctxTokens)}${snapshot.ctxWindow ? `/${fmtTokens(snapshot.ctxWindow)}` : ''}`
+  const limits = snapshot.limits.map(l => ({
+    ...l,
+    percentText: `${l.percent}%`,
+    resetText: l.resetsAt === null ? '' : ` (resets ${fmtDuration(l.resetsAt - now)})`,
+  }))
+  const cacheText = cache === null ? '' : `● cache ${cache}`
+  // The most detailed level that leaves room for the button on the same row.
+  const room = columns - label.length - 4
+  const detail: Detail =
+    ([0, 1, 2] as const).find(d => statsWidth(`${ctxPercent}%${ctxTokens}`, limits, cacheText, d) <= room) ?? 2
+
+  const stats = [
+    <Text key="ctx">
+      <Text>ctx </Text>
+      {detail === 0 && bar(ctxPercent, colorFor(ctxPercent))}
+      <Text bold color={colorFor(ctxPercent)}>{`${ctxPercent}%`}</Text>
+      <Text dimColor>{ctxTokens}</Text>
+    </Text>,
+    ...limits.map(l => (
+      <Text key={`limit-${l.label}`}>
+        {sep}
+        <Text>{l.label} </Text>
+        {detail === 0 && bar(l.percent, colorFor(l.percent))}
+        <Text bold color={colorFor(l.percent)}>{l.percentText}</Text>
+        {detail < 2 && <Text dimColor>{l.resetText}</Text>}
+      </Text>
+    )),
+    cache !== null && (
+      <Text key="cache">
+        {sep}
+        <Text color={cache === 'ok' ? STATUS_GREEN : STATUS_RED}>●</Text>
+        <Text dimColor> cache {cache}</Text>
+      </Text>
+    ),
+  ]
+
+  return (
+    <Box flexDirection="column" width="100%">
+      <Text wrap="truncate">
+        <Text color={STATUS_CYAN}>{snapshot.model}</Text>
+        <Text dimColor> · </Text>
+        <Text>{snapshot.dir}</Text>
+        {snapshot.branch !== '' && <Text dimColor> · </Text>}
+        {snapshot.branch !== '' && <Text color={STATUS_GREEN}>{snapshot.branch}</Text>}
+      </Text>
+      <Box justifyContent="space-between" gap={1}>
+        <Text wrap="truncate">{stats}</Text>
+        {button}
+      </Box>
+      <Text dimColor wrap="truncate">
+        {e.props.hint}
+      </Text>
+    </Box>
+  )
+}
+
+// The status line's clock: reset countdowns and the cache state move with it.
+let statusTicker: Timer | undefined
 
 // Zen's elapsed-time ticker, one per module load.
 let ticker: Timer | undefined
@@ -666,12 +955,19 @@ export const register: Register = on => {
     const started = await next(e)
     await loadSettings($)
     await loadThemes($)
+    await loadStatus($)
+    await loadSessionEffort($)
+    await refreshPaneBg($)
+    statusTicker?.cancel()
+    statusTicker = $.clock.every(15_000, () => {
+      void update($, statusClock, () => Date.now())
+    })
     try {
       await $.tool.register({ name: ZEN_TOOL_NAME, description: ZEN_TOOL_DESCRIPTION, inputSchema: ZEN_TOOL_SCHEMA })
     } catch {}
     await $.command.register({
       name: 'tools',
-      description: 'Open the Claude Tools menu: Zen mode, themes, effort and mode',
+      description: 'Open the extra-mods menu: Zen mode, themes, mode and status line',
       argumentHint: '[zen|themes|mode|debug]',
       immediate: true,
     })
@@ -687,7 +983,7 @@ export const register: Register = on => {
     const panel: Panel = arg === 'zen' || arg === 'themes' || arg === 'mode' ? arg : 'main'
     if ((await read($, menu)) !== null) await goTo($, panel)
     else await toggleMenu($, panel)
-    return { text: 'Claude Tools is open.' }
+    return { text: 'extra-mods is open.' }
   })
 
   // The menu's pane.
@@ -749,25 +1045,8 @@ export const register: Register = on => {
     return moved
   }).catch(($, e, next) => next(e))
 
-  // The corner button, at the end of the hint line under the prompt.
-  on('ui.render', { component: 'PromptHint' }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
-    const isOpen = (await read($, menu)) !== null
-    const isZen = await read($, zenOn)
-    return (
-      <Box justifyContent="space-between" width="100%" gap={1}>
-        <Text dimColor wrap="truncate">
-          {e.props.hint}
-        </Text>
-        <Button
-          key="tools-toggle"
-          plain
-          label={`◆ Claude Tools${isZen ? ' · zen' : ''} ${isOpen ? '▼' : '▲'}`}
-          onPress={() => toggleMenu($)}
-        />
-      </Box>
-    )
-  })
+  // The corner button and, when on, the status line, under the prompt.
+  on('ui.render', { component: 'PromptHint' }, async ($, e) => drawPromptHint($, e))
 
   // The band above the prompt: Zen's progress.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -872,7 +1151,20 @@ export const register: Register = on => {
   // Mode: the chosen effort rides on every model request of the session.
   on('turn.step', async function* ($, e, next) {
     const level = await read($, effort)
-    return yield* next(level !== null && e.effort !== undefined ? { ...e, effort: level } : e)
+    // The session's own level, as the engine would send it, before ours replaces it.
+    if (e.agentId === undefined && typeof e.effort === 'string' && e.effort !== (await read($, sessionEffort))) {
+      const own = e.effort
+      await update($, sessionEffort, () => own)
+    }
+    const answered = yield* next(level !== null && e.effort !== undefined ? { ...e, effort: level } : e)
+    // The main loop's responses keep the prompt cache warm; subagents' do not.
+    if (e.agentId === undefined && answered.usage !== null) {
+      const at = Date.now()
+      await update($, lastResponseAt, () => at)
+      await update($, statusClock, () => at)
+      if (await read($, statusOn)) void refreshStatus($).catch(() => {})
+    }
+    return answered
   })
 
   // Mode: the running permission mode, as the engine reports it to hooks.

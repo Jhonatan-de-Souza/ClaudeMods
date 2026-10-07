@@ -5,7 +5,7 @@
     {
       "name": "zen-toolbox",
       "source": "./plugins/zen-toolbox",
-      "description": "Claude Tools menu: Zen mode, terminal themes, effort and mode controls."
+      "description": "extra-mods menu: Zen mode, terminal themes, effort and mode controls."
     }
   ]
 }

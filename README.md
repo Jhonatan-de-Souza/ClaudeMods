@@ -2,9 +2,9 @@
 
 Mods for [Claude Code](https://claude.com/claude-code).
 
-## zen-toolbox: Claude Tools
+## zen-toolbox: extra-mods
 
-A **◆ Claude Tools ▲** button in the bottom-right corner, at the end of the hint line under the prompt. Click it, or type `/tools`, to open the menu in a pane. In the fullscreen layout the pane is a sidebar on the right; in other layouts it opens as a block above the prompt. The pane takes the keyboard: **↑↓** move, **Enter** selects, **b** goes back and **Esc** closes.
+A **◆ extra-mods ▲** button in the bottom-right corner, at the end of the hint line under the prompt. Click it, or type `/tools`, to open the menu in a pane. In the fullscreen layout the pane is a sidebar on the right; in other layouts it opens as a block above the prompt. The pane takes the keyboard: **↑↓** move, **Enter** selects, **b** goes back and **Esc** closes.
 
 ### 1. Zen mode
 
@@ -26,6 +26,15 @@ A **◆ Claude Tools ▲** button in the bottom-right corner, at the end of the 
 - **Effort:** `low` / `medium` / `high` / `xhigh` / `max`. Applies to every request from then on and is remembered across sessions.
 - **Running in:** the current permission mode. Claude Code doesn't let mods switch the mode of a running session, so use **shift+tab** for that.
 - **New sessions:** sets `permissions.defaultMode` in `~/.claude/settings.json` (ask, plan, accept edits, auto or bypass permissions). The mod saves a backup first, as `settings.json.zen-toolbox.bak`.
+
+### 4. Status line
+
+- Draws the status line under the prompt:
+  - first row: the model, the folder and the git branch
+  - second row: context, the 5h and 7d limits with their reset times, and the cache state, with **◆ extra-mods** at the end of the same row
+- The cache shows a green **● cache ok** while Claude's last response is under an hour old, and a red **● cache over** after that.
+- When the terminal narrows, the bars go first, then the reset times.
+- **On** takes your own `statusLine` command out of `~/.claude/settings.json`, so the two don't stack. It saves a backup first, as `settings.json.zen-toolbox.bak`. **Off** puts your command back.
 
 ## Install
 

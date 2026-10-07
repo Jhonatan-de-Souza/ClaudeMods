@@ -3,6 +3,7 @@ import type { On } from 'claude-code'
 
 import { oscFor, parseJsonc, targetProfile, toPalette, toWtScheme, type WtSettings } from '../hooks/lib/palette'
 import { barCells, percentOf, stepLabel, visibleSteps } from '../hooks/lib/zen'
+import { barFill, cacheState, CACHE_TTL_MS, colorFor, fmtDuration, fmtTokens } from '../hooks/lib/status'
 
 const PLUGIN = 'zen-toolbox'
 const SURFACES = ['terminal', 'desktop'] as const
@@ -43,7 +44,7 @@ const pane = {
   component: 'Pane' as const,
   requestId: 'claude-tools',
   props: {
-    title: 'Claude Tools',
+    title: 'extra-mods',
     isFocused: true,
     bodyColumns: 56,
     placement: 'dock' as const,
@@ -98,6 +99,23 @@ describe('themes', () => {
   })
 })
 
+describe('status line', () => {
+  test('formats like the old statusline script', async () => {
+    expect(fmtTokens(306_000)).toBe('306k')
+    expect(fmtTokens(1_000_000)).toBe('1M')
+    expect(fmtDuration(110 * 60_000)).toBe('1h50m')
+    expect(fmtDuration(24 * 3_600_000)).toBe('1d00h')
+    expect(barFill(34)).toBe(3)
+    expect(colorFor(95)).toBe('#ef4444')
+  })
+
+  test('cache is ok inside the hour and over after it', async () => {
+    expect(cacheState(null, 1000)).toBe(null)
+    expect(cacheState(0, CACHE_TTL_MS - 1)).toBe('ok')
+    expect(cacheState(0, CACHE_TTL_MS)).toBe('over')
+  })
+})
+
 describe('zen math', () => {
   const steps = (...s: ('pending' | 'in_progress' | 'completed')[]) =>
     s.map((status, i) => ({ id: String(i), text: `step ${i}`, status }))
@@ -129,7 +147,7 @@ describe('zen math', () => {
 // Stands in for the engine's own drawing where the mod passes.
 const engineDraws = (on: On) => {
   mock.store(on)
-  on('ui.render', ($, e) => $.ui.resolve(e).Text({ key: 'engine', children: 'engine' }))
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('ui.open', () => ({ value: { isPlaced: true as const } }))
   on('ui.close', () => ({ value: undefined }))
 }
@@ -140,7 +158,7 @@ describe('toolbox', () => {
     for (const surface of SURFACES) {
       const corner = await $.ui.mount({ plugin: PLUGIN, surface, ...hint })
       const menu = await $.ui.mount({ plugin: PLUGIN, surface, ...pane })
-      expect((await corner.find({ key: 'tools-toggle' }))?.text).toMatch(/Claude Tools ▲/)
+      expect((await corner.find({ key: 'tools-toggle' }))?.text).toMatch(/extra-mods ▲/)
       expect(await menu.find({ key: 'open-zen' })).toBeUndefined()
 
       await corner.press({ key: 'tools-toggle' })
@@ -163,7 +181,7 @@ describe('toolbox', () => {
     await menu.press({ key: 'open-zen' })
     await menu.press({ key: 'zen-on' })
     await menu.press({ key: 'zen-theme-rainbow' })
-    expect((await corner.find({ key: 'tools-toggle' }))?.text).toMatch(/zen/)
+    expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/● On/)
     expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● rainbow/)
 
     await menu.press({ key: 'tools-back' })
@@ -171,7 +189,7 @@ describe('toolbox', () => {
 
     await menu.press({ key: 'open-zen' })
     await menu.press({ key: 'zen-off' })
-    expect((await corner.find({ key: 'tools-toggle' }))?.text).not.toMatch(/zen/)
+    expect((await menu.find({ key: 'zen-off' }))?.text).toMatch(/● Off/)
   })
 
   test('the mode page lists effort levels and new-session modes', async ($, on) => {

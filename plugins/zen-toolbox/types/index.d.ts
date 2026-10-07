@@ -1,4 +1,4 @@
-export type Panel = 'main' | 'zen' | 'themes' | 'mode'
+export type Panel = 'main' | 'zen' | 'themes' | 'mode' | 'status'
 
 export type ZenTheme = 'blue' | 'dark' | 'light' | 'green' | 'rainbow' | 'custom'
 
@@ -19,6 +19,19 @@ export type ThemeEntry = { slug: string; name: string }
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
+export type RateLimit = { label: string; percent: number; resetsAt: number | null }
+
+// What the status line draws, refreshed after each model response and on a timer.
+export type StatusSnapshot = {
+  model: string
+  dir: string
+  branch: string
+  ctxPercent: number | null
+  ctxTokens: number | null
+  ctxWindow: number | null
+  limits: RateLimit[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'zen-toolbox': {
@@ -38,6 +51,13 @@ declare module 'claude-code' {
       defaultMode: string | null
       preview: string | null
       isDownloading: boolean
+      statusOn: boolean
+      status: StatusSnapshot | null
+      lastResponseAt: number | null
+      statusClock: number
+      sessionEffort: Effort | null
+      paneBg: string | null
+      defaultModeChosen: boolean
     }
   }
 }
