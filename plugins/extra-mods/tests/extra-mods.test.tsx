@@ -1,11 +1,11 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { oscFor, parseJsonc, targetProfile, toPalette, toWtScheme, type WtSettings } from '../hooks/lib/palette'
+import { oscFor, parseJsonc, targetProfile, toClaudeTheme, toPalette, toWtScheme, type WtSettings } from '../hooks/lib/palette'
 import { barCells, percentOf, stepLabel, visibleSteps } from '../hooks/lib/zen'
 import { barFill, cacheState, CACHE_TTL_MS, colorFor, fmtDuration, fmtTokens } from '../hooks/lib/status'
 
-const PLUGIN = 'zen-toolbox'
+const PLUGIN = 'extra-mods'
 const SURFACES = ['terminal', 'desktop'] as const
 
 const DRACULA = `name: Dracula Default
@@ -66,6 +66,17 @@ describe('themes', () => {
     expect(p?.normal).toEqual(['#21222c', '#ff5555', '#50fa7b', '#f1fa8c', '#bd93f9', '#ff79c6', '#8be9fd', '#f8f8f2'])
     expect(p?.bright[7]).toBe('#ffffff')
     expect(toPalette('name: broken\n')).toBe(null)
+  })
+
+  test('maps a palette to a Claude Code theme', async () => {
+    const theme = toClaudeTheme(toPalette(DRACULA)!)
+    expect(theme.name).toBe('Dracula Default')
+    expect(theme.base).toBe('dark')
+    expect(theme.overrides.claude).toBe('#ff79c6')
+    expect(theme.overrides.text).toBe('#f8f8f2')
+    expect(theme.overrides.error).toBe('#ff5555')
+    expect(theme.overrides.success).toBe('#50fa7b')
+    expect(theme.overrides.userMessageBackground).toMatch(/^#[0-9a-f]{6}$/)
   })
 
   test('maps a palette to a Windows Terminal scheme', async () => {
@@ -218,7 +229,7 @@ describe('toolbox', () => {
     await menu.press({ key: 'zen-on' })
 
     await $.tool.call({
-      tool: 'mcp__zen-toolbox__zen_progress',
+      tool: 'mcp__extra-mods__zen_progress',
       title: 'Build the dashboard',
       steps: [
         { text: 'Plan', status: 'completed' },

@@ -1,11 +1,11 @@
 {
   "name": "jdsjh-mods",
-  "owner": { "name": "jdsjh" },
+  "owner": { "name": "Jhonatan de Souza" },
   "plugins": [
     {
-      "name": "zen-toolbox",
-      "source": "./plugins/zen-toolbox",
-      "description": "extra-mods menu: Zen mode, terminal themes, effort and mode controls."
+      "name": "extra-mods",
+      "source": "./plugins/extra-mods",
+      "description": "extra-mods menu: Zen mode, Claude Code themes, effort and mode controls, status line."
     }
   ]
 }

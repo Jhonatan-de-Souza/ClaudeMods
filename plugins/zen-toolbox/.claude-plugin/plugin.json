@@ -1,7 +1,0 @@
-{
-  "name": "zen-toolbox",
-  "version": "0.1.0",
-  "description": "An extra-mods menu in the bottom corner: Zen mode with a progress band, terminal themes from terminalcolors.com, and effort/permission mode controls.",
-  "author": { "name": "jdsjh" },
-  "types": "./types/index.d.ts"
-}

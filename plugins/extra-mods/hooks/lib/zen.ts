@@ -18,7 +18,7 @@ export const ZEN_TOOL_NAME = 'zen_progress'
 
 export const ZEN_PROMPT = [
   'Zen mode is on: the user sees only your text messages, not your tool calls or their output.',
-  'They follow your work on a progress band fed by the zen_progress tool (mcp__zen-toolbox__zen_progress).',
+  'They follow your work on a progress band fed by the zen_progress tool (mcp__extra-mods__zen_progress).',
   'Before you start, call it with your plan as a list of short steps. Call it again with the whole list each time a step starts or finishes,',
   'so exactly one step is in_progress while you work and every step is completed when you are done.',
   'Before acting, say in a sentence what you are about to do and why.',

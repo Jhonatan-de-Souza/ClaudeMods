@@ -2,12 +2,12 @@
 
 **English** · [Português](README.pt-BR.md)
 
-Mods for [Claude Code](https://claude.com/claude-code). One plugin, `zen-toolbox`, adds an **◆ extra-mods ▲** button in the bottom-right corner, under the prompt. It opens a sidebar with four tools:
+Mods for [Claude Code](https://claude.com/claude-code). One plugin, `extra-mods`, adds an **◆ extra-mods ▲** button in the bottom-right corner, under the prompt. It opens a sidebar with four tools:
 
 | Tool | What it does |
 |---|---|
 | **Zen mode** | Hides tool calls and their output, and shows Claude's plan as a progress band above the prompt |
-| **Theme** | Recolors the whole terminal with any theme from [terminalcolors.com](https://terminalcolors.com), with live preview |
+| **Theme** | Colors Claude Code with any theme from [terminalcolors.com](https://terminalcolors.com), with live preview |
 | **Mode** | Sets the effort level, and the permission mode new sessions start in |
 | **Status line** | Model, folder, branch, context, 5h/7d limits and cache state, with the button on the same row |
 
@@ -17,7 +17,7 @@ You need Claude Code 2.1.292 or newer. Run these in a terminal:
 
 ```
 claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods
-claude plugin install zen-toolbox@jdsjh-mods --scope user
+claude plugin install extra-mods@jdsjh-mods --scope user
 ```
 
 Then start a new Claude Code session, or run `/reload-plugins` in an open one. The button shows up at the bottom right of every session.
@@ -30,9 +30,9 @@ You can point your coding agent at this repository and ask it to install the mod
 >
 > 1. Check Claude Code is installed and recent enough: run `claude --version`. It must print 2.1.292 or higher. If it doesn't, stop and tell the user to update Claude Code.
 > 2. Add this repository as a plugin marketplace: run `claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods`. It should print `Successfully added marketplace: jdsjh-mods`. If the marketplace already exists, continue.
-> 3. Install the plugin for all sessions: run `claude plugin install zen-toolbox@jdsjh-mods --scope user`. It should print `Successfully installed plugin: zen-toolbox@jdsjh-mods`.
+> 3. Install the plugin for all sessions: run `claude plugin install extra-mods@jdsjh-mods --scope user`. It should print `Successfully installed plugin: extra-mods@jdsjh-mods`.
 > 4. *Optional, ask first, and only if the user does not want the mod's built-in status line:* install the standalone status line script. Copy `statusline/statusline.py` from this repository to `~/.claude/statusline.py`. Then in `~/.claude/settings.json` set `"statusLine": { "type": "command", "command": "python ~/.claude/statusline.py", "refreshInterval": 2 }` (use `python3` on macOS and Linux). It needs Python 3.
-> 5. Verify: run `claude plugin list`. `zen-toolbox` must be listed and enabled.
+> 5. Verify: run `claude plugin list`. `extra-mods` must be listed and enabled.
 > 6. Tell the user to run `/reload-plugins` or start a new session, then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
 >
 > On Windows, write paths with forward slashes (`C:/Users/...`) when a command runs in a POSIX shell such as Git Bash.
@@ -50,11 +50,12 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 
 ### 2. Theme
 
-- The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/zen-toolbox/themes/`.
-- Moving through the list with the arrow keys or the mouse wheel **previews** each theme on the whole window. **Enter** keeps one. Leaving without keeping one puts your kept theme back.
-  - **Windows Terminal:** the theme only colors Claude Code. When a session starts, it's written into Windows Terminal's `settings.json` as the color scheme of the profile Claude Code runs in. When the session ends, that profile gets its own colors back. Other tabs on the same profile take the theme while Claude Code runs. A backup is saved first, as `settings.json.zen-toolbox.bak`.
-  - **macOS / Linux:** the colors are sent to the terminal as OSC sequences when a session starts, and reset when it ends. Works in iTerm2, Ghostty, kitty, WezTerm, Alacritty and most modern terminals.
-- **Reset** puts your original colors back.
+- The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/extra-mods/themes/`.
+- Moving through the list with the arrow keys or the mouse wheel **previews** each theme on Claude Code. **Enter** keeps one. Leaving without keeping one puts your kept theme back.
+- Each theme becomes a Claude Code custom theme, `~/.claude/themes/extra-mods.json`, and is selected in `/theme`. Claude Code reloads it live and remembers it across sessions.
+- It colors Claude Code's own interface: text, the accent, borders, success/error/warning, plan and accept-edits modes, diffs and your message background. The terminal and its background keep their own colors, and nothing outside Claude Code changes.
+- The first time, restart Claude Code once, because Claude Code only watches `~/.claude/themes/` if that folder existed when it started.
+- **Back to Claude Code's previous theme** selects the theme you had before.
 
 ### 3. Mode
 
@@ -68,14 +69,14 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 - Row 2: context, the 5h and 7d limits with their reset times, and the cache state, with **◆ extra-mods** at the end of the same row.
 - **● cache ok** (green) while Claude's last response is under an hour old; **● cache over** (red) after that.
 - When the terminal narrows, the bars go first, then the reset times.
-- **On** takes your own `statusLine` command out of `~/.claude/settings.json` so the two don't stack (backed up first). **Off** puts it back.
+- It's **on** by default, so **◆ extra-mods** sits on the stats row. **On** takes your own `statusLine` command out of `~/.claude/settings.json` so the two don't stack (backed up first). **Off** puts it back.
 
 `statusline/statusline.py` is the same status line as a standalone script, for Claude Code setups without the mod (see step 4 of the agent instructions).
 
 ## Develop
 
 ```
-claude --plugin-dir ./plugins/zen-toolbox
-claude plugin validate ./plugins/zen-toolbox
-claude plugin test ./plugins/zen-toolbox
+claude --plugin-dir ./plugins/extra-mods
+claude plugin validate ./plugins/extra-mods
+claude plugin test ./plugins/extra-mods
 ```

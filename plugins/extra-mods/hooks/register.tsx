@@ -19,13 +19,10 @@ import {
 } from './lib/status'
 import {
   matchAll,
-  oscFor,
-  type Palette,
   parseJsonc,
   targetProfile,
   toPalette,
-  toWtScheme,
-  type WtProfile,
+  toClaudeTheme,
   type WtSettings,
 } from './lib/palette'
 import {
@@ -45,42 +42,44 @@ import {
 
 // Every value the drawings read. Settings worth keeping across sessions are
 // mirrored to $.store under the same key.
-const menu = atom({ plugin: 'zen-toolbox', key: 'menu' } as const, null)
-const zenOn = atom({ plugin: 'zen-toolbox', key: 'zenOn' } as const, false)
-const zenTheme = atom({ plugin: 'zen-toolbox', key: 'zenTheme' } as const, 'blue')
+const menu = atom({ plugin: 'extra-mods', key: 'menu' } as const, null)
+const zenOn = atom({ plugin: 'extra-mods', key: 'zenOn' } as const, false)
+const zenTheme = atom({ plugin: 'extra-mods', key: 'zenTheme' } as const, 'blue')
 const zenCustom = atom(
-  { plugin: 'zen-toolbox', key: 'zenCustom' } as const,
+  { plugin: 'extra-mods', key: 'zenCustom' } as const,
   { bar: '#3b82f6', text: '#e2e8f0', border: '#3b82f6' } satisfies ZenColors,
 )
-const zenCollapsed = atom({ plugin: 'zen-toolbox', key: 'zenCollapsed' } as const, false)
-const task = atom({ plugin: 'zen-toolbox', key: 'task' } as const, null)
-const now = atom({ plugin: 'zen-toolbox', key: 'now' } as const, 0)
-const themes = atom({ plugin: 'zen-toolbox', key: 'themes' } as const, [])
-const themeName = atom({ plugin: 'zen-toolbox', key: 'themeName' } as const, null)
-const themeQuery = atom({ plugin: 'zen-toolbox', key: 'themeQuery' } as const, '')
-const themeStatus = atom({ plugin: 'zen-toolbox', key: 'themeStatus' } as const, '')
-const effort = atom({ plugin: 'zen-toolbox', key: 'effort' } as const, null)
-const mode = atom({ plugin: 'zen-toolbox', key: 'mode' } as const, null)
-const defaultMode = atom({ plugin: 'zen-toolbox', key: 'defaultMode' } as const, null)
-const preview = atom({ plugin: 'zen-toolbox', key: 'preview' } as const, null)
-const isDownloading = atom({ plugin: 'zen-toolbox', key: 'isDownloading' } as const, false)
-const sessionEffort = atom({ plugin: 'zen-toolbox', key: 'sessionEffort' } as const, null)
-const paneBg = atom({ plugin: 'zen-toolbox', key: 'paneBg' } as const, null)
-const defaultModeChosen = atom({ plugin: 'zen-toolbox', key: 'defaultModeChosen' } as const, false)
-const statusOn = atom({ plugin: 'zen-toolbox', key: 'statusOn' } as const, false)
-const status = atom({ plugin: 'zen-toolbox', key: 'status' } as const, null)
-const lastResponseAt = atom({ plugin: 'zen-toolbox', key: 'lastResponseAt' } as const, null)
-const statusClock = atom({ plugin: 'zen-toolbox', key: 'statusClock' } as const, 0)
+const zenCollapsed = atom({ plugin: 'extra-mods', key: 'zenCollapsed' } as const, false)
+const task = atom({ plugin: 'extra-mods', key: 'task' } as const, null)
+const now = atom({ plugin: 'extra-mods', key: 'now' } as const, 0)
+const themes = atom({ plugin: 'extra-mods', key: 'themes' } as const, [])
+const themeName = atom({ plugin: 'extra-mods', key: 'themeName' } as const, null)
+const themeQuery = atom({ plugin: 'extra-mods', key: 'themeQuery' } as const, '')
+const themeStatus = atom({ plugin: 'extra-mods', key: 'themeStatus' } as const, '')
+const effort = atom({ plugin: 'extra-mods', key: 'effort' } as const, null)
+const mode = atom({ plugin: 'extra-mods', key: 'mode' } as const, null)
+const defaultMode = atom({ plugin: 'extra-mods', key: 'defaultMode' } as const, null)
+const preview = atom({ plugin: 'extra-mods', key: 'preview' } as const, null)
+const isDownloading = atom({ plugin: 'extra-mods', key: 'isDownloading' } as const, false)
+const sessionEffort = atom({ plugin: 'extra-mods', key: 'sessionEffort' } as const, null)
+const paneBg = atom({ plugin: 'extra-mods', key: 'paneBg' } as const, null)
+const defaultModeChosen = atom({ plugin: 'extra-mods', key: 'defaultModeChosen' } as const, false)
+const statusOn = atom({ plugin: 'extra-mods', key: 'statusOn' } as const, false)
+const status = atom({ plugin: 'extra-mods', key: 'status' } as const, null)
+const lastResponseAt = atom({ plugin: 'extra-mods', key: 'lastResponseAt' } as const, null)
+const statusClock = atom({ plugin: 'extra-mods', key: 'statusClock' } as const, 0)
 
 // The menu's pane: a sidebar in the fullscreen layout, a block above the prompt otherwise.
 // Claude's progress tool, as the model calls it.
-const ZEN_TOOL = 'mcp__zen-toolbox__zen_progress'
+const ZEN_TOOL = 'mcp__extra-mods__zen_progress'
 
 const PANE = 'claude-tools'
 const PANE_SIZE = { rows: 26, columns: 56 }
 // Used until the terminal's own background is known: just short of pure black.
 const PANE_BACKGROUND = '#0b0b0b'
 const MENU_NAME = 'extra-mods'
+// The slug of the Claude Code theme the mod writes: ~/.claude/themes/extra-mods.json.
+const CLAUDE_THEME = 'extra-mods'
 
 // Windows Terminal's built-in schemes, by name: their backgrounds.
 const WT_BUILTIN_BACKGROUNDS: Record<string, string> = {
@@ -119,7 +118,7 @@ async function homeDir($: EngineInterface) {
 }
 
 async function themesDir($: EngineInterface) {
-  return `${await homeDir($)}/.claude/zen-toolbox/themes`
+  return `${await homeDir($)}/.claude/extra-mods/themes`
 }
 
 async function isWindows($: EngineInterface) {
@@ -236,61 +235,6 @@ async function wtSettingsPath($: EngineInterface, profileId: string | null) {
   return first
 }
 
-// Windows: writes the scheme into Windows Terminal's settings for the profile
-// this Claude Code runs in, and Windows Terminal repaints. The theme is only
-// meant for Claude Code: it goes on at session start and comes off (null) at
-// session end. The backup, taken before the mod's first change, holds the
-// original colors that null puts back; the defaults always keep theirs.
-async function applyWindowsTerminal($: EngineInterface, palette: Palette | null) {
-  const profileId = (await $.env.get('WT_PROFILE_ID')) ?? null
-  const path = await wtSettingsPath($, profileId)
-  if (path === null) throw new Error('Windows Terminal settings not found: run Claude Code in Windows Terminal')
-
-  const text = await $.fs.read(path)
-  const backup = `${path}.zen-toolbox.bak`
-  if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
-  const original = parseJsonc(await $.fs.read(backup)) as WtSettings
-  const settings = parseJsonc(text) as WtSettings
-
-  const defaults = targetProfile(settings, null)
-  const originalDefaults = targetProfile(original, null)
-  // This window's profile; it is the defaults when the profile is not listed.
-  const profile = targetProfile(settings, profileId)
-  const originalProfile = targetProfile(original, profileId)
-  const setScheme = (target: WtProfile, value: unknown) => {
-    if (value === undefined || value === null) delete target.colorScheme
-    else target.colorScheme = value
-  }
-
-  // Other profiles never change (an older version set the theme on the defaults).
-  if (profile !== defaults) setScheme(defaults, originalDefaults.colorScheme)
-  if (palette === null) {
-    setScheme(profile, originalProfile.colorScheme)
-  } else {
-    const scheme = toWtScheme(palette)
-    settings.schemes = [...(settings.schemes ?? []).filter(s => s.name !== scheme.name), scheme]
-    setScheme(profile, scheme.name)
-  }
-
-  // Previews leave schemes behind: keep the mod's only while a profile uses one.
-  const ours = new Set((await read($, themes)).map(t => t.name))
-  const kept = new Set((original.schemes ?? []).map(s => s.name))
-  const list = Array.isArray(settings.profiles) ? settings.profiles : (settings.profiles?.list ?? [])
-  const inUse = new Set([defaults, ...list].map(p => p.colorScheme).filter((n): n is string => typeof n === 'string'))
-  settings.schemes = (settings.schemes ?? []).filter(s => {
-    const name = String(s.name)
-    return !ours.has(name) || kept.has(name) || inUse.has(name)
-  })
-  await $.fs.write(path, JSON.stringify(settings, null, 4))
-}
-
-// macOS and Linux: OSC color sequences written straight to the terminal.
-async function applyOsc($: EngineInterface, palette: Palette | null) {
-  const ran = await $.process.run(['sh', '-c', 'printf "%s" "$1" > /dev/tty', 'sh', oscFor(palette)])
-  if (ran.exitCode !== 0) throw new Error(ran.stderr.trim() || 'could not write to the terminal')
-}
-
-// Recolors the terminal with a saved theme, or with null its own colors.
 // The background of the terminal Claude Code runs in: Windows Terminal's
 // profile and scheme, else the kept theme's.
 async function terminalBackground($: EngineInterface): Promise<string | null> {
@@ -323,17 +267,40 @@ async function refreshPaneBg($: EngineInterface) {
   } catch {}
 }
 
-async function paintTerminal($: EngineInterface, slug: string | null) {
-  let palette: Palette | null = null
-  if (slug !== null) {
-    palette = toPalette(await $.fs.read(`${await themesDir($)}/${slug}.yaml`))
-    if (palette === null) throw new Error(`${slug}.yaml is not a theme this mod can read`)
+// Selects a Claude Code theme by its /theme value (`dark`, `custom:<slug>`),
+// first keeping the one it replaces, so a reset can put it back.
+async function selectClaudeTheme($: EngineInterface, value: string) {
+  const row = (await $.config.list()).find(r => r.key === 'theme')
+  if (row === undefined) throw new Error('Claude Code has no theme setting to change')
+  if (row.value === value) return
+  if (value === `custom:${CLAUDE_THEME}` && (await $.store.get('themeBefore')) === undefined) {
+    await $.store.set('themeBefore', row.value)
   }
-  if (await isWindows($)) await applyWindowsTerminal($, palette)
-  else await applyOsc($, palette)
-  // The sidebar follows the terminal's background, previews included.
-  if (palette !== null) await update($, paneBg, () => palette!.background)
-  else await refreshPaneBg($)
+  const set = await $.config.set({ key: 'theme', value })
+  if ('deny' in set && set.deny !== undefined) {
+    throw new Error(`${set.deny}. Pick "${CLAUDE_THEME}" in /theme once`)
+  }
+}
+
+// Paints Claude Code with a saved theme: written as the custom theme
+// ~/.claude/themes/extra-mods.json, which Claude Code reloads live, and
+// selected. Only Claude Code changes; the terminal keeps its own colors.
+// null selects the theme that was in use before the mod's first one.
+async function paintTerminal($: EngineInterface, slug: string | null) {
+  if (slug === null) {
+    const before = (await $.store.get('themeBefore')) as string | undefined
+    await selectClaudeTheme($, before ?? 'dark')
+    await $.store.delete('themeBefore')
+    return null
+  }
+  const palette = toPalette(await $.fs.read(`${await themesDir($)}/${slug}.yaml`))
+  if (palette === null) throw new Error(`${slug}.yaml is not a theme this mod can read`)
+  const dir = `${await homeDir($)}/.claude/themes`
+  const isFirst = !(await $.fs.exists(dir))
+  await $.fs.write(`${dir}/${CLAUDE_THEME}.json`, `${JSON.stringify(toClaudeTheme(palette), null, 2)}\n`)
+  await selectClaudeTheme($, `custom:${CLAUDE_THEME}`)
+  // Claude Code watches the folder only if it existed when it started.
+  if (isFirst) $.ui.toast('Restart Claude Code once so it picks up its new themes folder')
   return palette
 }
 
@@ -344,7 +311,7 @@ async function applyTheme($: EngineInterface, slug: string | null) {
   await update($, themeName, () => palette?.name ?? null)
   if (palette === null) await $.store.delete('theme')
   else await $.store.set('theme', { slug: slug!, name: palette.name })
-  await sayTheme($, palette ? `Kept ${palette.name}` : 'Terminal colors reset')
+  await sayTheme($, palette ? `Kept ${palette.name}` : "Back to Claude Code's previous theme")
 }
 
 // Shows a theme on the terminal without keeping it.
@@ -389,15 +356,7 @@ async function loadThemes($: EngineInterface) {
   const list = await indexThemes($)
   const saved = (await $.store.get('theme')) as { slug: string; name: string } | undefined
   if (saved === undefined) return
-  await update($, themeName, () => saved.name)
-  // The theme is Claude Code's alone: on as a session starts, off as it ends.
-  if (list.some(t => t.slug === saved.slug)) void paintTerminal($, saved.slug).catch(() => {})
-}
-
-// As the session ends, the terminal gets its own colors back.
-async function unpaintTerminal($: EngineInterface) {
-  if ((await $.store.get('theme')) === undefined && (await read($, preview)) === null) return
-  await paintTerminal($, null)
+  if (list.some(t => t.slug === saved.slug)) await update($, themeName, () => saved.name)
 }
 
 // Mode and effort --------------------------------------------------------------
@@ -419,7 +378,7 @@ async function setEffort($: EngineInterface, level: Effort) {
 async function setDefaultMode($: EngineInterface, next: Mode) {
   const path = `${await homeDir($)}/.claude/settings.json`
   const text = (await $.fs.exists(path)) ? await $.fs.read(path) : '{}'
-  const backup = `${path}.zen-toolbox.bak`
+  const backup = `${path}.extra-mods.bak`
   if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
   const settings = JSON.parse(text) as { permissions?: Record<string, unknown> }
   settings.permissions = { ...settings.permissions, defaultMode: next }
@@ -513,7 +472,7 @@ type SavedStatusLine = { statusLine: unknown }
 async function setStatusOn($: EngineInterface, isOn: boolean) {
   const path = `${await homeDir($)}/.claude/settings.json`
   const text = (await $.fs.exists(path)) ? await $.fs.read(path) : '{}'
-  const backup = `${path}.zen-toolbox.bak`
+  const backup = `${path}.extra-mods.bak`
   if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
   const settings = JSON.parse(text) as { statusLine?: unknown }
   const saved = (await $.store.get('savedStatusLine')) as SavedStatusLine | undefined
@@ -534,6 +493,9 @@ async function setStatusOn($: EngineInterface, isOn: boolean) {
 async function loadStatus($: EngineInterface) {
   const isOn = (await $.store.get('statusOn')) as boolean | undefined
   if (isOn === true) await update($, statusOn, () => true)
+  // Never chosen: on, so the button shares the stats row (the status line
+  // command, if any, is kept and comes back with Off).
+  if (isOn === undefined) await setStatusOn($, true).catch(() => {})
   await update($, statusClock, () => Date.now())
   try {
     await refreshStatus($)
@@ -779,7 +741,7 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
         key="themes-reset"
         plain
         dimColor
-        label="Reset to the terminal's own colors"
+        label="Back to Claude Code's previous theme"
         onPress={themeAction($, () => applyTheme($, null))}
       />,
       <Button key="themes-refresh" plain dimColor label="Download the themes again" onPress={themeAction($, () => downloadThemes($))} />,
@@ -868,6 +830,16 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
 
 // The area under the prompt: with the status line on, its rows with the Claude
 // Tools button at the end of the stats row; otherwise the hint line and the button.
+// The engine's hint, on one row: it can carry a second line holding only a
+// separator, which drew as a stray dot under the hint.
+function hintText(hint: string) {
+  return hint
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => /[\p{L}\p{N}]/u.test(line))
+    .join(' · ')
+}
+
 async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) {
   const { Box, Text, Button } = $.ui.resolve(e)
   const isOpen = (await read($, menu)) !== null
@@ -879,7 +851,7 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
     return (
       <Box justifyContent="space-between" width="100%" gap={1}>
         <Text dimColor wrap="truncate">
-          {e.props.hint}
+          {hintText(e.props.hint)}
         </Text>
         {button}
       </Box>
@@ -950,7 +922,7 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
         {button}
       </Box>
       <Text dimColor wrap="truncate">
-        {e.props.hint}
+        {hintText(e.props.hint)}
       </Text>
     </Box>
   )
@@ -986,8 +958,9 @@ async function startTask($: EngineInterface, title: string) {
 export const register: Register = on => {
 
   on('session.end', async ($, e, next) => {
+    // A preview left open as the session ends gives way to the kept theme.
     try {
-      await unpaintTerminal($)
+      await endPreview($)
     } catch {}
     return next(e)
   }).catch(($, e, next) => next(e))

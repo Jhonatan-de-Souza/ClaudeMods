@@ -34,7 +34,7 @@ export type StatusSnapshot = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'zen-toolbox': {
+    'extra-mods': {
       menu: Panel | null
       zenOn: boolean
       zenTheme: ZenTheme
