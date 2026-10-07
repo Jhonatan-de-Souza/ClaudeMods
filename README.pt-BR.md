@@ -79,6 +79,7 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 - Uma linha só, ao lado do rótulo de modo do próprio Claude Code: o modelo, a pasta e a branch do git, depois contexto, os limites de 5h e 7d com o tempo até zerarem, e o estado do cache, com **◆ extra-mods** no fim.
 - **● cache ok** (verde) enquanto a última resposta do Claude tem menos de uma hora; **● cache over** (vermelho) depois disso.
 - Quando o terminal fica estreito, as barras saem primeiro, depois os tempos, depois o modelo e a pasta.
+- Enquanto o Claude tem um shell ou monitor rodando em segundo plano, uma segunda linha embaixo mostra (`1 shell, 1 monitor`). Clique nela para abrir o `/tasks`.
 - Vem **ligada** por padrão, para o **◆ extra-mods** ficar na linha de status. **On** tira o seu comando `statusLine` do `~/.claude/settings.json` para as duas não aparecerem juntas (com backup antes). **Off** coloca de volta.
 
 `statusline/statusline.py` é a mesma linha de status como script avulso, para quem usa o Claude Code sem o mod (veja o passo 4 das instruções para o agente).

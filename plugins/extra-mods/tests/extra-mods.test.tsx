@@ -14,7 +14,7 @@ import {
   type WtSettings,
 } from '../hooks/lib/palette'
 import { barCells, percentOf, stepLabel, visibleSteps } from '../hooks/lib/zen'
-import { barFill, cacheState, CACHE_TTL_MS, colorFor, fmtDuration, fmtTokens } from '../hooks/lib/status'
+import { backgroundPill, barFill, cacheState, CACHE_TTL_MS, colorFor, fmtDuration, fmtTokens } from '../hooks/lib/status'
 
 const PLUGIN = 'extra-mods'
 const SURFACES = ['terminal', 'desktop'] as const
@@ -165,6 +165,15 @@ describe('status line', () => {
     expect(cacheState(0, CACHE_TTL_MS - 1)).toBe('ok')
     expect(cacheState(0, CACHE_TTL_MS)).toBe('over')
   })
+
+  test("reads the engine's shell and monitor pill out of its hint", async () => {
+    expect(backgroundPill('? for shortcuts')).toBe(null)
+    expect(backgroundPill('1 shell · ? for shortcuts')).toBe('1 shell')
+    expect(backgroundPill('esc to interrupt 2 shells, 1 monitor')).toBe('2 shells, 1 monitor')
+    expect(backgroundPill('1 monitor')).toBe('1 monitor')
+    expect(backgroundPill('3 background tasks · ? for shortcuts')).toBe('3 background tasks')
+    expect(backgroundPill('ran 2 shell commands')).toBe(null)
+  })
 })
 
 describe('zen math', () => {
@@ -280,6 +289,44 @@ describe('toolbox', () => {
     expect((await menu.find({ key: 'model-sonnet' }))?.text).toMatch(/● Sonnet/)
     await menu.press({ key: 'tools-back' })
     expect(await menu.find({ text: /Sonnet 5\.5 · / })).toBeDefined()
+  })
+
+  test('a running shell or monitor gets a second row under the status line', async ($, on) => {
+    engineDraws(on)
+    const ran: string[] = []
+    on('command.run', { command: 'tasks' }, async (_$, e) => {
+      ran.push(e.command)
+      return { text: '' }
+    })
+    const busy = { ...hint, props: { ...hint.props, hint: '1 shell, 1 monitor · ? for shortcuts' } }
+    // The status line, turned on from the menu over an empty settings.json.
+    on('env.get', () => ({ value: '/home/me' }))
+    on('fs.exists', () => ({ value: false }))
+    on('fs.write', () => ({ value: undefined }))
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    on('session.cwd', () => ({ value: '/work/ClaudeMods' }))
+    on('session.usage', () => ({
+      value: { context: { percent: 12, tokens: 24_000, window: 200_000 }, rateLimits: [] },
+    }) as never)
+    on('process.run', () => ({ value: { exitCode: 0, stdout: 'main\n', stderr: '' } }) as never)
+    const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
+    const opener = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    await opener.press({ key: 'tools-toggle' })
+    await menu.press({ key: 'open-status' })
+    await menu.press({ key: 'status-on' })
+    await opener.press({ key: 'tools-toggle' })
+    await opener.unmount()
+    await menu.unmount()
+    const idle = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    expect(await idle.find({ key: 'background-tasks' })).toBeUndefined()
+    await idle.unmount()
+
+    const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...busy })
+    expect((await corner.find({ key: 'background-tasks' }))?.text).toMatch(/1 shell, 1 monitor/)
+    expect(await corner.find({ text: /Opus 5\.5 · ClaudeMods/ })).toBeDefined()
+    expect(await corner.find({ key: 'tools-toggle' })).toBeDefined()
+    await corner.press({ key: 'background-tasks' })
+    expect(ran).toEqual(['tasks'])
   })
 
   test("Claude's zen_progress calls fill the band", async ($, on) => {

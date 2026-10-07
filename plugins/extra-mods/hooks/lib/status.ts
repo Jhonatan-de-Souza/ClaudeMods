@@ -41,6 +41,14 @@ export const cacheState = (lastResponseAt: number | null, now: number): 'ok' | '
 
 export const LIMIT_LABELS: Record<string, string> = { five_hour: '5h', seven_day: '7d' }
 
+// The engine's background-work pill as its hint reads it: `1 shell`,
+// `2 shells, 1 monitor`, `1 monitor`, or `3 background tasks` when the kinds
+// mix. null while no shell or monitor Claude started is running. (`ran 2 shell
+// commands` is a finished tool group, not a running shell.)
+const BACKGROUND_PILL = /\b\d+ (?:shells?(?:, \d+ monitors?)?|(?:Artifact comment )?monitors?|background tasks?)\b(?! commands?\b)/
+
+export const backgroundPill = (hint: string): string | null => hint.match(BACKGROUND_PILL)?.[0] ?? null
+
 // Detail levels, most detailed first: bars and reset times, then no bars,
 // then no reset times. The widest that fits `columns` wins.
 export type Detail = 0 | 1 | 2

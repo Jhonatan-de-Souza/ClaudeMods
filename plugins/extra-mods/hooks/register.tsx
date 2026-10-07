@@ -4,6 +4,7 @@ import type { EngineInterface, Register, RenderChildren, RenderInput, Timer } fr
 import type { Effort, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
 import { EFFORTS, type Mode, MODELS, MODES, modeLabel, modelFamily } from './lib/modes'
 import {
+  backgroundPill,
   BAR_WIDTH,
   barFill,
   cacheState,
@@ -933,7 +934,9 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
 }
 
 // The row under the prompt: with the status line on, the status line with the
-// extra-mods button at its end; otherwise the hint and the button.
+// extra-mods button at its end, and under it, while Claude has a background
+// shell or monitor running, the engine's pill for them; otherwise the hint and
+// the button.
 // The engine's hint, on one row: it can carry a second line holding only a
 // separator, which drew as a stray dot under the hint.
 function hintText(hint: string) {
@@ -1031,12 +1034,35 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
     ),
   ]
 
-  return (
+  const statsRow = (
     <Box justifyContent="space-between" flexGrow={1} gap={1}>
       <Text wrap="truncate">{stats}</Text>
       {button}
     </Box>
   )
+  // The status line takes the hint's place, pill and all, so the pill gets a
+  // row of its own under it. Still no wider than the space the label leaves.
+  const pill = backgroundPill(e.props.hint)
+  if (pill === null) return statsRow
+  return (
+    <Box flexDirection="column" flexGrow={1}>
+      {statsRow}
+      <Box gap={1}>
+        <Button key="background-tasks" plain label={`⎿ ${pill}`} onPress={() => openTasks($)} />
+        <Text dimColor wrap="truncate">
+          · /tasks to manage
+        </Text>
+      </Box>
+    </Box>
+  )
+}
+
+async function openTasks($: EngineInterface) {
+  try {
+    await $.command.run({ command: 'tasks' })
+  } catch (error) {
+    $.ui.toast(`Could not open /tasks: ${String(error)}`)
+  }
 }
 
 // `claude-opus-5-5` (what $.session.model() gives) as `Opus 5.5`; a name

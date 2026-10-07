@@ -1,6 +1,6 @@
 {
   "name": "extra-mods",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "An extra-mods menu in the bottom corner: Zen mode with a progress band, Claude Code themes from terminalcolors.com, model, effort and permission mode controls and a status line.",
   "author": { "name": "Jhonatan de Souza" },
   "types": "./types/index.d.ts"

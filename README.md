@@ -79,6 +79,7 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 - One row, next to Claude Code's own mode label: the model, the folder and the git branch, then context, the 5h and 7d limits with their reset times, and the cache state, with **◆ extra-mods** at the end.
 - **● cache ok** (green) while Claude's last response is under an hour old; **● cache over** (red) after that.
 - When the terminal narrows, the bars go first, then the reset times, then the model and folder.
+- While Claude has a background shell or monitor running, a second row under it shows them (`1 shell, 1 monitor`). Click it to open `/tasks`.
 - It's **on** by default, so **◆ extra-mods** sits on the status row. **On** takes your own `statusLine` command out of `~/.claude/settings.json` so the two don't stack (backed up first). **Off** puts it back.
 
 `statusline/statusline.py` is the same status line as a standalone script, for Claude Code setups without the mod (see step 4 of the agent instructions).
