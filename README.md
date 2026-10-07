@@ -2,7 +2,7 @@
 
 **English** · [Português](README.pt-BR.md)
 
-Mods for [Claude Code](https://claude.com/claude-code). One plugin, `zen-toolbox`, adds an **◆ extra-mods ▲** button in the bottom-right corner, under the prompt. It opens a sidebar with five tools:
+Mods for [Claude Code](https://claude.com/claude-code). One plugin, `zen-toolbox`, adds an **◆ extra-mods ▲** button in the bottom-right corner, under the prompt. It opens a sidebar with four tools:
 
 | Tool | What it does |
 |---|---|
@@ -10,7 +10,6 @@ Mods for [Claude Code](https://claude.com/claude-code). One plugin, `zen-toolbox
 | **Theme** | Recolors the whole terminal with any theme from [terminalcolors.com](https://terminalcolors.com), with live preview |
 | **Mode** | Sets the effort level, and the permission mode new sessions start in |
 | **Status line** | Model, folder, branch, context, 5h/7d limits and cache state, with the button on the same row |
-| **Privacy** | Hides your account email and organization name in Claude Code's header (demo mode) |
 
 ## Install
 
@@ -27,15 +26,14 @@ Then start a new Claude Code session, or run `/reload-plugins` in an open one. T
 
 You can point your coding agent at this repository and ask it to install the mod. The steps below are written for the agent.
 
-> **Agent instructions.** Follow these steps in order. Ask the user before step 4 or step 5, because those change their settings.
+> **Agent instructions.** Follow these steps in order. Ask the user before step 4, because it changes their settings.
 >
 > 1. Check Claude Code is installed and recent enough: run `claude --version`. It must print 2.1.292 or higher. If it doesn't, stop and tell the user to update Claude Code.
 > 2. Add this repository as a plugin marketplace: run `claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods`. It should print `Successfully added marketplace: jdsjh-mods`. If the marketplace already exists, continue.
 > 3. Install the plugin for all sessions: run `claude plugin install zen-toolbox@jdsjh-mods --scope user`. It should print `Successfully installed plugin: zen-toolbox@jdsjh-mods`.
-> 4. *Optional, ask first:* hide the account email and organization name in Claude Code's header (demo mode). In `~/.claude/settings.json`, add `"IS_DEMO": "1"` to the `env` object (create `env` if it is missing). This is what the mod's **Privacy** toggle does, and it applies from the next session.
-> 5. *Optional, ask first, and only if the user does not want the mod's built-in status line:* install the standalone status line script. Copy `statusline/statusline.py` from this repository to `~/.claude/statusline.py`. Then in `~/.claude/settings.json` set `"statusLine": { "type": "command", "command": "python ~/.claude/statusline.py", "refreshInterval": 2 }` (use `python3` on macOS and Linux). It needs Python 3.
-> 6. Verify: run `claude plugin list`. `zen-toolbox` must be listed and enabled.
-> 7. Tell the user to run `/reload-plugins` or start a new session, then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
+> 4. *Optional, ask first, and only if the user does not want the mod's built-in status line:* install the standalone status line script. Copy `statusline/statusline.py` from this repository to `~/.claude/statusline.py`. Then in `~/.claude/settings.json` set `"statusLine": { "type": "command", "command": "python ~/.claude/statusline.py", "refreshInterval": 2 }` (use `python3` on macOS and Linux). It needs Python 3.
+> 5. Verify: run `claude plugin list`. `zen-toolbox` must be listed and enabled.
+> 6. Tell the user to run `/reload-plugins` or start a new session, then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
 >
 > On Windows, write paths with forward slashes (`C:/Users/...`) when a command runs in a POSIX shell such as Git Bash.
 
@@ -72,15 +70,7 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 - When the terminal narrows, the bars go first, then the reset times.
 - **On** takes your own `statusLine` command out of `~/.claude/settings.json` so the two don't stack (backed up first). **Off** puts it back.
 
-`statusline/statusline.py` is the same status line as a standalone script, for Claude Code setups without the mod (see step 5 of the agent instructions).
-
-### 5. Privacy
-
-- Turns on Claude Code's demo mode, which hides your account email and organization name in the header and in `/status`.
-- **It applies from your next session.** Claude Code reads the `IS_DEMO` variable once, when it starts, so the session you change it in stays as it was. The page shows both: **New sessions** (the toggle) and **This session** (what's in effect now).
-- **On** adds `IS_DEMO=1` to the `env` block of `~/.claude/settings.json` (backed up first).
-- **Off** removes it there. On Windows, it also removes the `IS_DEMO` user variable if one was set with `setx`, because any value at all turns demo mode on.
-- **Warning:** demo mode skips the folder trust prompt. Until a folder is trusted, Claude Code loads no plugins (extra-mods included) and no status line. Your home folder is never trusted for good: Claude Code asks again on every launch there. So with demo mode on, start Claude Code in a project folder you trusted once, with demo mode off.
+`statusline/statusline.py` is the same status line as a standalone script, for Claude Code setups without the mod (see step 4 of the agent instructions).
 
 ## Develop
 

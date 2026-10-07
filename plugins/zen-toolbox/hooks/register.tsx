@@ -66,8 +66,6 @@ const preview = atom({ plugin: 'zen-toolbox', key: 'preview' } as const, null)
 const isDownloading = atom({ plugin: 'zen-toolbox', key: 'isDownloading' } as const, false)
 const sessionEffort = atom({ plugin: 'zen-toolbox', key: 'sessionEffort' } as const, null)
 const paneBg = atom({ plugin: 'zen-toolbox', key: 'paneBg' } as const, null)
-const privacyNow = atom({ plugin: 'zen-toolbox', key: 'privacyNow' } as const, false)
-const privacyNext = atom({ plugin: 'zen-toolbox', key: 'privacyNext' } as const, false)
 const defaultModeChosen = atom({ plugin: 'zen-toolbox', key: 'defaultModeChosen' } as const, false)
 const statusOn = atom({ plugin: 'zen-toolbox', key: 'statusOn' } as const, false)
 const status = atom({ plugin: 'zen-toolbox', key: 'status' } as const, null)
@@ -533,57 +531,6 @@ async function setStatusOn($: EngineInterface, isOn: boolean) {
   if (isOn) await refreshStatus($)
 }
 
-// Privacy ------------------------------------------------------------------------
-
-// Claude Code reads IS_DEMO once, as it starts: then it hides the account's
-// email and organization in the header and /status. So this session's state
-// is fixed; what the toggle changes is the next session's.
-
-// Whether the Windows user variable IS_DEMO is set (setx), which every new
-// terminal inherits whatever settings.json says.
-async function windowsDemoVariable($: EngineInterface) {
-  if (!(await isWindows($))) return false
-  try {
-    const ran = await $.process.run(['reg', 'query', 'HKCU\\Environment', '/v', 'IS_DEMO'])
-    return ran.exitCode === 0
-  } catch {
-    return false
-  }
-}
-
-async function loadPrivacy($: EngineInterface) {
-  const now = (await $.env.get('IS_DEMO')) !== undefined && (await $.env.get('IS_DEMO')) !== ''
-  await update($, privacyNow, () => now)
-  let next = await windowsDemoVariable($)
-  try {
-    const { env } = (await $.settings.read({ source: 'user' })) as { env?: Record<string, unknown> }
-    if (typeof env?.IS_DEMO === 'string' && env.IS_DEMO !== '') next = true
-  } catch {}
-  await update($, privacyNext, () => next)
-}
-
-// On: IS_DEMO=1 in the env block of ~/.claude/settings.json, which Claude Code
-// applies at start on every platform. Off: removed there, and the Windows user
-// variable too, since any value at all turns demo mode on.
-async function setPrivacy($: EngineInterface, isOn: boolean) {
-  const path = `${await homeDir($)}/.claude/settings.json`
-  const text = (await $.fs.exists(path)) ? await $.fs.read(path) : '{}'
-  const backup = `${path}.zen-toolbox.bak`
-  if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
-  const settings = JSON.parse(text) as { env?: Record<string, string> }
-  if (isOn) settings.env = { ...settings.env, IS_DEMO: '1' }
-  else if (settings.env !== undefined) {
-    delete settings.env.IS_DEMO
-    if (Object.keys(settings.env).length === 0) delete settings.env
-  }
-  await $.fs.write(path, `${JSON.stringify(settings, null, 2)}\n`)
-  if (!isOn && (await windowsDemoVariable($))) {
-    await $.process.run(['reg', 'delete', 'HKCU\\Environment', '/v', 'IS_DEMO', '/f'])
-  }
-  await update($, privacyNext, () => isOn)
-  $.ui.toast(isOn ? 'Privacy on from your next session' : 'Privacy off from your next session')
-}
-
 async function loadStatus($: EngineInterface) {
   const isOn = (await $.store.get('statusOn')) as boolean | undefined
   if (isOn === true) await update($, statusOn, () => true)
@@ -839,33 +786,6 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
     ])
   }
 
-  if (panel === 'privacy') {
-    const isNext = await read($, privacyNext)
-    const isNow = await read($, privacyNow)
-    return page('Privacy', [
-      <Text key="privacy-about" dimColor>
-        Hides your account email and organization name in Claude Code's header and in /status (Claude Code's demo mode).
-      </Text>,
-      heading('New sessions'),
-      option('privacy-on', 'On', isNext, () =>
-        setPrivacy($, true).catch((error: unknown) => $.ui.toast(`Could not turn it on: ${String(error)}`)),
-      ),
-      option('privacy-off', 'Off', !isNext, () =>
-        setPrivacy($, false).catch((error: unknown) => $.ui.toast(`Could not turn it off: ${String(error)}`)),
-      ),
-      heading('This session'),
-      <Text key="privacy-now">
-        <Text color={isNow ? STATUS_GREEN : undefined}>{isNow ? '● on' : '○ off'}</Text>
-        <Text dimColor> · Claude Code reads it at start, so a change shows in your next session</Text>
-      </Text>,
-      <Text key="privacy-trust" color="warning">
-        Demo mode skips the folder trust prompt. In a folder you have not trusted yet, and always in your home folder,
-        Claude Code then loads no plugins (extra-mods included) and no status line. Start Claude Code in a project
-        folder you have trusted once.
-      </Text>,
-    ])
-  }
-
   if (panel === 'status') {
     const isOn = await read($, statusOn)
     return page('Status line', [
@@ -943,7 +863,6 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
     row('2', 'Theme', theme, 'themes'),
     row('3', 'Mode', `${running === null ? '—' : modeLabel(running)} · effort ${level ?? 'default'}`, 'mode'),
     row('4', 'Status line', (await read($, statusOn)) ? 'on' : 'off', 'status'),
-    row('5', 'Privacy', (await read($, privacyNext)) ? 'on' : 'off', 'privacy'),
   ])
 }
 
@@ -1078,7 +997,6 @@ export const register: Register = on => {
     await loadSettings($)
     await loadThemes($)
     await loadStatus($)
-    await loadPrivacy($)
     await loadSessionEffort($)
     await refreshPaneBg($)
     statusTicker?.cancel()
