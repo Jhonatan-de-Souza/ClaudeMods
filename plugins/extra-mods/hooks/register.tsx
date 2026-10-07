@@ -269,6 +269,22 @@ async function refreshPaneBg($: EngineInterface) {
   } catch {}
 }
 
+// The `theme` in ~/.claude/settings.json, written directly: /config's theme row
+// takes only the built-in themes ("For custom themes, use /theme"), so a custom
+// one can only be chosen here. Claude Code reads it once, at startup, and loads
+// ~/.claude/themes/ at startup only when that theme is a custom one.
+async function writeThemeSetting($: EngineInterface, value: string): Promise<boolean> {
+  const path = `${await homeDir($)}/.claude/settings.json`
+  const text = (await $.fs.exists(path)) ? await $.fs.read(path) : '{}'
+  const settings = JSON.parse(text) as { theme?: unknown }
+  if (settings.theme === value) return false
+  const backup = `${path}.extra-mods.bak`
+  if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
+  settings.theme = value
+  await $.fs.write(path, `${JSON.stringify(settings, null, 2)}\n`)
+  return true
+}
+
 // Selects a Claude Code theme by its /theme value (`dark`, `custom:<slug>`),
 // first keeping the one it replaces, so a reset can put it back.
 async function selectClaudeTheme($: EngineInterface, value: string) {
@@ -278,9 +294,13 @@ async function selectClaudeTheme($: EngineInterface, value: string) {
   if (value === `custom:${CLAUDE_THEME}` && (await $.store.get('themeBefore')) === undefined) {
     await $.store.set('themeBefore', row.value)
   }
-  const set = await $.config.set({ key: 'theme', value })
-  if ('deny' in set && set.deny !== undefined) {
-    throw new Error(`${set.deny}. Pick "${CLAUDE_THEME}" in /theme once`)
+  if (!value.startsWith('custom:') || row.options?.includes(value)) {
+    const set = await $.config.set({ key: 'theme', value })
+    if (set.deny === undefined) return
+    if (!value.startsWith('custom:')) throw new Error(set.deny)
+  }
+  if (await writeThemeSetting($, value)) {
+    $.ui.toast(`Restart Claude Code once to switch to the ${CLAUDE_THEME} theme; after that, themes change live`)
   }
 }
 
@@ -298,11 +318,8 @@ async function paintTerminal($: EngineInterface, slug: string | null) {
   const palette = toPalette(await $.fs.read(`${await themesDir($)}/${slug}.yaml`))
   if (palette === null) throw new Error(`${slug}.yaml is not a theme this mod can read`)
   const dir = `${await homeDir($)}/.claude/themes`
-  const isFirst = !(await $.fs.exists(dir))
   await $.fs.write(`${dir}/${CLAUDE_THEME}.json`, `${JSON.stringify(toClaudeTheme(palette), null, 2)}\n`)
   await selectClaudeTheme($, `custom:${CLAUDE_THEME}`)
-  // Claude Code watches the folder only if it existed when it started.
-  if (isFirst) $.ui.toast('Restart Claude Code once so it picks up its new themes folder')
   return palette
 }
 

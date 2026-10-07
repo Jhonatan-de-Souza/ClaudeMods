@@ -22,6 +22,13 @@ claude plugin install extra-mods@jdsjh-mods --scope user
 
 Depois abra uma nova sessão do Claude Code, ou rode `/reload-plugins` numa sessão aberta. O botão aparece no canto inferior direito de todas as sessões.
 
+Para atualizar para a versão mais recente depois:
+
+```
+claude plugin marketplace update jdsjh-mods
+claude plugin update extra-mods@jdsjh-mods
+```
+
 ### Instalar com um agente de IA
 
 Você pode apontar o seu agente de programação para este repositório e pedir que ele instale o mod. Os passos abaixo foram escritos para o agente.
@@ -52,9 +59,9 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 
 - Na primeira vez que você abre, ele baixa todos os temas do terminalcolors.com para `~/.claude/extra-mods/themes/`.
 - Percorrer a lista com as setas ou a roda do mouse mostra uma **prévia** de cada tema no Claude Code. **Enter** escolhe um. Sair sem escolher volta ao tema que você já tinha.
-- Cada tema vira um tema personalizado do Claude Code, `~/.claude/themes/extra-mods.json`, e fica selecionado no `/theme`. O Claude Code recarrega ao vivo e lembra dele entre sessões.
+- Cada tema vira um tema personalizado do Claude Code, `~/.claude/themes/extra-mods.json`, e fica salvo como `theme` em `~/.claude/settings.json`. O Claude Code recarrega ao vivo e lembra dele entre sessões.
 - Ele colore a própria interface do Claude Code: texto, a cor de destaque, bordas, sucesso/erro/aviso, os modos plan e accept edits, diffs e o fundo das suas mensagens. O terminal e o fundo dele continuam com as cores dele, e nada fora do Claude Code muda.
-- Na primeira vez, reinicie o Claude Code uma vez, porque ele só acompanha `~/.claude/themes/` se essa pasta já existia quando ele abriu.
+- Na primeira vez, reinicie o Claude Code uma vez: ele lê a configuração de tema ao abrir, e só carrega `~/.claude/themes/` quando essa configuração já é um tema personalizado. Depois disso, escolher um tema muda o Claude Code ao vivo.
 - **Back to Claude Code's previous theme** volta ao tema que você usava antes.
 
 ### 3. Modo
@@ -65,11 +72,10 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 
 ### 4. Linha de status
 
-- Linha 1: o modelo, a pasta e a branch do git.
-- Linha 2: contexto, os limites de 5h e 7d com o tempo até zerarem, e o estado do cache, com **◆ extra-mods** no fim da mesma linha.
+- Uma linha só, ao lado do rótulo de modo do próprio Claude Code: o modelo, a pasta e a branch do git, depois contexto, os limites de 5h e 7d com o tempo até zerarem, e o estado do cache, com **◆ extra-mods** no fim.
 - **● cache ok** (verde) enquanto a última resposta do Claude tem menos de uma hora; **● cache over** (vermelho) depois disso.
-- Quando o terminal fica estreito, as barras saem primeiro, depois os tempos.
-- Vem **ligada** por padrão, para o **◆ extra-mods** ficar na linha dos números. **On** tira o seu comando `statusLine` do `~/.claude/settings.json` para as duas não aparecerem juntas (com backup antes). **Off** coloca de volta.
+- Quando o terminal fica estreito, as barras saem primeiro, depois os tempos, depois o modelo e a pasta.
+- Vem **ligada** por padrão, para o **◆ extra-mods** ficar na linha de status. **On** tira o seu comando `statusLine` do `~/.claude/settings.json` para as duas não aparecerem juntas (com backup antes). **Off** coloca de volta.
 
 `statusline/statusline.py` é a mesma linha de status como script avulso, para quem usa o Claude Code sem o mod (veja o passo 4 das instruções para o agente).
 
