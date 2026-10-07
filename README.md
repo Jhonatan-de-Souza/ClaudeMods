@@ -54,7 +54,7 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 
 - The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/zen-toolbox/themes/`.
 - Moving through the list with the arrow keys or the mouse wheel **previews** each theme on the whole window. **Enter** keeps one. Leaving without keeping one puts your kept theme back.
-  - **Windows Terminal:** the theme is written into Windows Terminal's `settings.json` as a color scheme for the current profile. A backup is saved first, as `settings.json.zen-toolbox.bak`.
+  - **Windows Terminal:** the theme is written into Windows Terminal's `settings.json` as the default color scheme every profile inherits, so every new window opens in it. Schemes left over from previews are removed. A backup is saved first, as `settings.json.zen-toolbox.bak`, and **Reset** puts its colors back.
   - **macOS / Linux:** the colors are sent to the terminal as OSC sequences, and applied again at each session start. Works in iTerm2, Ghostty, kitty, WezTerm, Alacritty and most modern terminals.
 - **Reset** puts your original colors back.
 

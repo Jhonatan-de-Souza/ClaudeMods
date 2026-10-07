@@ -54,7 +54,7 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 
 - Na primeira vez que você abre, ele baixa todos os temas do terminalcolors.com para `~/.claude/zen-toolbox/themes/`.
 - Percorrer a lista com as setas ou a roda do mouse mostra uma **prévia** de cada tema na janela inteira. **Enter** escolhe um. Sair sem escolher volta ao tema que você já tinha.
-  - **Windows Terminal:** o tema é gravado no `settings.json` do Windows Terminal como esquema de cores do perfil atual. Um backup é salvo antes, como `settings.json.zen-toolbox.bak`.
+  - **Windows Terminal:** o tema é gravado no `settings.json` do Windows Terminal como o esquema de cores padrão que todos os perfis herdam, então toda janela nova já abre com ele. Os esquemas que sobram das prévias são removidos. Um backup é salvo antes, como `settings.json.zen-toolbox.bak`, e o **Reset** volta às cores dele.
   - **macOS / Linux:** as cores são enviadas ao terminal como sequências OSC, e aplicadas de novo a cada início de sessão. Funciona no iTerm2, Ghostty, kitty, WezTerm, Alacritty e na maioria dos terminais modernos.
 - **Reset** volta às suas cores originais.
 

@@ -25,6 +25,7 @@ import {
   targetProfile,
   toPalette,
   toWtScheme,
+  type WtProfile,
   type WtSettings,
 } from './lib/palette'
 import {
@@ -220,8 +221,6 @@ async function downloadThemes($: EngineInterface) {
   await sayTheme($, `Saved ${saved} themes to ${dir}`)
 }
 
-type WtOriginal = { path: string; profileId: string | null; colorScheme: unknown }
-
 async function wtSettingsPath($: EngineInterface, profileId: string | null) {
   const local = ((await $.env.get('LOCALAPPDATA')) ?? '').replaceAll('\\', '/')
   const candidates = [
@@ -239,34 +238,52 @@ async function wtSettingsPath($: EngineInterface, profileId: string | null) {
   return first
 }
 
-// Windows: writes the scheme into Windows Terminal's settings and points this
-// window's profile at it; Windows Terminal reloads the file and repaints.
+// Windows: writes the scheme into Windows Terminal's settings as the default
+// every profile inherits, so every new window opens in it; Windows Terminal
+// reloads the file and repaints. The backup, taken before the mod's first
+// change, holds the original colors a reset puts back.
 async function applyWindowsTerminal($: EngineInterface, palette: Palette | null) {
   const profileId = (await $.env.get('WT_PROFILE_ID')) ?? null
   const path = await wtSettingsPath($, profileId)
   if (path === null) throw new Error('Windows Terminal settings not found: run Claude Code in Windows Terminal')
-  const original = (await $.store.get('wtOriginal')) as WtOriginal | undefined
-  if (palette === null && original === undefined) return
 
   const text = await $.fs.read(path)
   const backup = `${path}.zen-toolbox.bak`
   if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
+  const original = parseJsonc(await $.fs.read(backup)) as WtSettings
   const settings = parseJsonc(text) as WtSettings
+
+  const defaults = targetProfile(settings, null)
+  const originalDefaults = targetProfile(original, null)
+  // This window's profile; it is the defaults when the profile is not listed.
   const profile = targetProfile(settings, profileId)
+  const originalProfile = targetProfile(original, profileId)
+  const setScheme = (target: WtProfile, value: unknown) => {
+    if (value === undefined || value === null) delete target.colorScheme
+    else target.colorScheme = value
+  }
 
   if (palette === null) {
-    if (original?.colorScheme === null || original?.colorScheme === undefined) delete profile.colorScheme
-    else profile.colorScheme = original.colorScheme
-    await $.store.delete('wtOriginal')
+    setScheme(defaults, originalDefaults.colorScheme)
+    if (profile !== defaults) setScheme(profile, originalProfile.colorScheme)
   } else {
-    if (original === undefined) {
-      const first: WtOriginal = { path, profileId, colorScheme: profile.colorScheme ?? null }
-      await $.store.set('wtOriginal', first)
-    }
     const scheme = toWtScheme(palette)
     settings.schemes = [...(settings.schemes ?? []).filter(s => s.name !== scheme.name), scheme]
-    profile.colorScheme = scheme.name
+    setScheme(defaults, scheme.name)
+    // A profile with its own scheme would hide the default: give it ours too.
+    // One without inherits it (an older version of the mod set it there).
+    if (profile !== defaults) setScheme(profile, originalProfile.colorScheme === undefined ? undefined : scheme.name)
   }
+
+  // Previews leave schemes behind: keep the mod's only while a profile uses one.
+  const ours = new Set((await read($, themes)).map(t => t.name))
+  const kept = new Set((original.schemes ?? []).map(s => s.name))
+  const list = Array.isArray(settings.profiles) ? settings.profiles : (settings.profiles?.list ?? [])
+  const inUse = new Set([defaults, ...list].map(p => p.colorScheme).filter((n): n is string => typeof n === 'string'))
+  settings.schemes = (settings.schemes ?? []).filter(s => {
+    const name = String(s.name)
+    return !ours.has(name) || kept.has(name) || inUse.has(name)
+  })
   await $.fs.write(path, JSON.stringify(settings, null, 4))
 }
 
