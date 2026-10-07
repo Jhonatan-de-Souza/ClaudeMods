@@ -76,39 +76,86 @@ export type ClaudeTheme = { name: string; base: 'dark' | 'light'; overrides: Rec
 // A Claude Code custom theme (~/.claude/themes/<slug>.json) in the palette's
 // colors. Claude Code keeps the terminal's own background; the colors it draws
 // on it (text, accents, borders, diffs, message backgrounds) come from here.
+// Every color token Claude Code has (2.1.292) is set: a token left out keeps
+// the base theme's color, so a partial theme looks like dark/light with a tint.
 export const toClaudeTheme = (p: Palette): ClaudeTheme => {
-  const [, red = p.foreground, green = p.foreground, yellow = p.foreground, blue = p.foreground, magenta = p.foreground, cyan = p.foreground] = p.normal
-  const gray = p.bright[0] ?? mix(p.background, p.foreground, 0.5)
+  const fg = p.foreground
   const bg = p.background
+  const [, red = fg, green = fg, yellow = fg, blue = fg, magenta = fg, cyan = fg] = p.normal
+  const [gray = mix(bg, fg, 0.5), redB = red, greenB = green, yellowB = yellow, blueB = blue, magentaB = magenta] = p.bright
+  const orange = mix(red, yellow, 0.5)
+  const indigo = mix(blue, magenta, 0.5)
+  // The lighter (dark themes) or darker (light themes) twin an animation pulses to.
+  const shimmer = (c: string) => mix(c, fg, 0.35)
+  const rainbow = { red, orange, yellow, green, blue: cyan, indigo, violet: magenta }
   return {
     name: p.name,
     base: isLight(bg) ? 'light' : 'dark',
     overrides: {
       claude: p.accent,
-      claudeShimmer: mix(p.accent, p.foreground, 0.4),
-      text: p.foreground,
+      claudeShimmer: shimmer(p.accent),
+      claudeBlue_FOR_SYSTEM_SPINNER: blue,
+      claudeBlueShimmer_FOR_SYSTEM_SPINNER: shimmer(blue),
+      text: fg,
       inverseText: bg,
       inactive: gray,
-      subtle: mix(bg, p.foreground, 0.3),
+      inactiveShimmer: shimmer(gray),
+      subtle: mix(bg, fg, 0.3),
+      background: cyan,
       suggestion: blue,
       permission: blue,
+      permissionShimmer: shimmer(blue),
       remember: magenta,
+      skill: magentaB,
       success: green,
       error: red,
       warning: yellow,
+      warningShimmer: shimmer(yellow),
       planMode: cyan,
       autoAccept: magenta,
-      promptBorder: mix(bg, p.foreground, 0.35),
+      autoAcceptShimmer: shimmer(magenta),
+      promptBorder: mix(bg, fg, 0.35),
+      promptBorderShimmer: mix(bg, fg, 0.6),
       bashBorder: magenta,
       ide: blue,
       merged: magenta,
-      userMessageBackground: mix(bg, p.foreground, 0.08),
+      professionalBlue: blueB,
+      chromeYellow: yellowB,
+      fastMode: orange,
+      fastModeShimmer: shimmer(orange),
+      effortUltra: magenta,
+      briefLabelYou: blue,
+      briefLabelClaude: p.accent,
+      clawd_body: p.accent,
+      clawd_background: bg,
+      rate_limit_fill: blue,
+      rate_limit_empty: mix(bg, blue, 0.3),
+      red_FOR_SUBAGENTS_ONLY: red,
+      blue_FOR_SUBAGENTS_ONLY: blue,
+      green_FOR_SUBAGENTS_ONLY: green,
+      yellow_FOR_SUBAGENTS_ONLY: yellow,
+      purple_FOR_SUBAGENTS_ONLY: magenta,
+      orange_FOR_SUBAGENTS_ONLY: orange,
+      pink_FOR_SUBAGENTS_ONLY: magentaB,
+      cyan_FOR_SUBAGENTS_ONLY: cyan,
+      ...Object.fromEntries(
+        Object.entries(rainbow).flatMap(([name, c]) => [
+          [`rainbow_${name}`, c],
+          [`rainbow_${name}_shimmer`, shimmer(c)],
+        ]),
+      ),
+      userMessageBackground: mix(bg, fg, 0.08),
+      userMessageBackgroundHover: mix(bg, fg, 0.12),
+      composerSidebarBackground: mix(bg, fg, 0.05),
+      bashMessageBackgroundColor: mix(bg, magenta, 0.08),
+      memoryBackgroundColor: mix(bg, cyan, 0.08),
+      selectionBg: mix(bg, blue, 0.35),
       diffAdded: mix(bg, green, 0.22),
       diffRemoved: mix(bg, red, 0.22),
       diffAddedDimmed: mix(bg, green, 0.12),
       diffRemovedDimmed: mix(bg, red, 0.12),
-      diffAddedWord: mix(bg, green, 0.45),
-      diffRemovedWord: mix(bg, red, 0.45),
+      diffAddedWord: mix(bg, greenB, 0.45),
+      diffRemovedWord: mix(bg, redB, 0.45),
     },
   }
 }
@@ -155,6 +202,30 @@ export const targetProfile = (settings: WtSettings, profileId: string | null): W
   const holder = settings.profiles as { defaults?: WtProfile }
   holder.defaults ??= {}
   return holder.defaults
+}
+
+// The color scheme the mod writes into Windows Terminal's settings: the kept
+// theme, put on the profile Claude Code runs in while a session lasts.
+export const WT_SCHEME = 'extra-mods'
+
+const profileList = (settings: WtSettings): WtProfile[] =>
+  Array.isArray(settings.profiles) ? settings.profiles : (settings.profiles?.list ?? [])
+
+export const findProfile = (settings: WtSettings, profileId: string): WtProfile | undefined =>
+  profileList(settings).find(p => p.guid?.toLowerCase() === profileId.toLowerCase())
+
+// Themes `profile` with the palette, or with null gives it back `original`,
+// the scheme it had (undefined: none of its own, so it follows the defaults).
+// The mod's scheme stays in the settings only while some profile uses it.
+export const withProfileTheme = (settings: WtSettings, profile: WtProfile, palette: Palette | null, original?: unknown): void => {
+  if (palette !== null) profile.colorScheme = WT_SCHEME
+  else if (original === undefined) delete profile.colorScheme
+  else profile.colorScheme = original
+  const schemes = (settings.schemes ?? []).filter(s => s.name !== WT_SCHEME)
+  const defaults = Array.isArray(settings.profiles) ? undefined : settings.profiles?.defaults
+  const inUse = [...profileList(settings), defaults].some(p => p?.colorScheme === WT_SCHEME)
+  if (palette !== null) schemes.push({ ...toWtScheme(palette), name: WT_SCHEME })
+  settings.schemes = palette !== null || !inUse ? schemes : (settings.schemes ?? [])
 }
 
 export const toWtScheme = (p: Palette): Record<string, string> => {

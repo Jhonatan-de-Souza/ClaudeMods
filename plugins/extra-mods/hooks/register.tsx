@@ -18,11 +18,15 @@ import {
   statsWidth,
 } from './lib/status'
 import {
+  findProfile,
   matchAll,
+  type Palette,
   parseJsonc,
   targetProfile,
   toPalette,
   toClaudeTheme,
+  withProfileTheme,
+  WT_SCHEME,
   type WtSettings,
 } from './lib/palette'
 import {
@@ -304,15 +308,53 @@ async function selectClaudeTheme($: EngineInterface, value: string) {
   }
 }
 
+// Windows: the kept theme, background included, on the Windows Terminal
+// profile this tab runs in. Windows Terminal reloads its settings live, so the
+// tab repaints at once; other open tabs on the same profile take the theme too
+// while the session runs. The profile's own scheme is kept in the store before
+// the first change and goes back with null, at session end; a session that
+// crashed leaves it there, and the next session's end puts it back.
+async function paintWindowsTerminal($: EngineInterface, palette: Palette | null) {
+  const profileId = (await $.env.get('WT_PROFILE_ID')) ?? null
+  if (profileId === null) return
+  const path = await wtSettingsPath($, profileId)
+  if (path === null) return
+  const text = await $.fs.read(path)
+  const settings = parseJsonc(text) as WtSettings
+  const profile = findProfile(settings, profileId)
+  if (profile === undefined) return
+  const key = profileId.toLowerCase()
+  const originals = ((await $.store.get('wtOriginal')) ?? {}) as Record<string, { colorScheme?: unknown }>
+  if (palette === null && originals[key] === undefined) return
+  if (originals[key] === undefined) {
+    originals[key] = profile.colorScheme === undefined || profile.colorScheme === WT_SCHEME ? {} : { colorScheme: profile.colorScheme }
+    await $.store.set('wtOriginal', originals)
+  }
+  withProfileTheme(settings, profile, palette, originals[key].colorScheme)
+  const out = JSON.stringify(settings, null, 4)
+  if (out !== JSON.stringify(parseJsonc(text), null, 4)) {
+    const backup = `${path}.extra-mods.bak`
+    if (!(await $.fs.exists(backup))) await $.fs.write(backup, text)
+    await $.fs.write(path, out)
+  }
+  if (palette === null) {
+    delete originals[key]
+    await $.store.set('wtOriginal', originals)
+  }
+  await refreshPaneBg($)
+}
+
 // Paints Claude Code with a saved theme: written as the custom theme
 // ~/.claude/themes/extra-mods.json, which Claude Code reloads live, and
-// selected. Only Claude Code changes; the terminal keeps its own colors.
-// null selects the theme that was in use before the mod's first one.
+// selected. On Windows this tab's Windows Terminal profile takes the theme
+// too, background included. null selects the theme that was in use before
+// the mod's first one, and gives the profile its own colors back.
 async function paintTerminal($: EngineInterface, slug: string | null) {
   if (slug === null) {
     const before = (await $.store.get('themeBefore')) as string | undefined
     await selectClaudeTheme($, before ?? 'dark')
     await $.store.delete('themeBefore')
+    if (await isWindows($)) await paintWindowsTerminal($, null)
     return null
   }
   const palette = toPalette(await $.fs.read(`${await themesDir($)}/${slug}.yaml`))
@@ -320,6 +362,7 @@ async function paintTerminal($: EngineInterface, slug: string | null) {
   const dir = `${await homeDir($)}/.claude/themes`
   await $.fs.write(`${dir}/${CLAUDE_THEME}.json`, `${JSON.stringify(toClaudeTheme(palette), null, 2)}\n`)
   await selectClaudeTheme($, `custom:${CLAUDE_THEME}`)
+  if (await isWindows($)) await paintWindowsTerminal($, palette)
   return palette
 }
 
@@ -375,7 +418,12 @@ async function loadThemes($: EngineInterface) {
   const list = await indexThemes($)
   const saved = (await $.store.get('theme')) as { slug: string; name: string } | undefined
   if (saved === undefined) return
-  if (list.some(t => t.slug === saved.slug)) await update($, themeName, () => saved.name)
+  if (!list.some(t => t.slug === saved.slug)) return
+  await update($, themeName, () => saved.name)
+  // This tab's Windows Terminal profile takes the kept theme for the session.
+  try {
+    if (await isWindows($)) await paintWindowsTerminal($, toPalette(await $.fs.read(`${await themesDir($)}/${saved.slug}.yaml`)))
+  } catch {}
 }
 
 // Mode and effort --------------------------------------------------------------
@@ -993,9 +1041,11 @@ async function startTask($: EngineInterface, title: string) {
 export const register: Register = on => {
 
   on('session.end', async ($, e, next) => {
-    // A preview left open as the session ends gives way to the kept theme.
+    // A preview left open as the session ends gives way to the kept theme,
+    // and this tab's Windows Terminal profile gets its own colors back.
     try {
       await endPreview($)
+      if (await isWindows($)) await paintWindowsTerminal($, null)
     } catch {}
     return next(e)
   }).catch(($, e, next) => next(e))

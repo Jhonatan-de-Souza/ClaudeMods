@@ -57,12 +57,15 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 
 ### 2. Theme
 
+> **Tested on Windows only so far** (Windows Terminal). On macOS and Linux the theme colors Claude Code's interface, but the terminal's background isn't changed yet; that part will come once it's tested on a Mac.
+
 - The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/extra-mods/themes/`.
 - Moving through the list with the arrow keys or the mouse wheel **previews** each theme on Claude Code. **Enter** keeps one. Leaving without keeping one puts your kept theme back.
 - Each theme becomes a Claude Code custom theme, `~/.claude/themes/extra-mods.json`, and is set as `theme` in `~/.claude/settings.json`. Claude Code reloads it live and remembers it across sessions.
-- It colors Claude Code's own interface: text, the accent, borders, success/error/warning, plan and accept-edits modes, diffs and your message background. The terminal and its background keep their own colors, and nothing outside Claude Code changes.
+- It sets every color Claude Code's interface has: text, the accent, borders, success/error/warning, the permission modes, diffs, selection, spinners, subagents and your message background.
+- A Claude Code theme can't change the terminal's background. **On Windows Terminal**, the mod also puts the theme, background included, on the profile Claude Code runs in, for as long as the session lasts: previews and picks repaint the tab live, and the profile gets its own colors back when the session ends (or, after a crash, when the next one ends). Windows Terminal colors whole profiles, so other open tabs on the same profile take the theme too while Claude Code runs. Windows Terminal's `settings.json` is backed up first, as `settings.json.extra-mods.bak`.
 - The first time, restart Claude Code once: it reads the theme setting at startup, and only loads `~/.claude/themes/` when that setting is already a custom theme. After that, picking a theme changes Claude Code live.
-- **Back to Claude Code's previous theme** selects the theme you had before.
+- **Back to Claude Code's previous theme** selects the theme you had before, and gives the Windows Terminal profile its own colors back.
 
 ### 3. Mode
 

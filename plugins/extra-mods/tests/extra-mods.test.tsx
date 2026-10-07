@@ -1,7 +1,18 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { oscFor, parseJsonc, targetProfile, toClaudeTheme, toPalette, toWtScheme, type WtSettings } from '../hooks/lib/palette'
+import {
+  findProfile,
+  oscFor,
+  parseJsonc,
+  targetProfile,
+  toClaudeTheme,
+  toPalette,
+  toWtScheme,
+  withProfileTheme,
+  WT_SCHEME,
+  type WtSettings,
+} from '../hooks/lib/palette'
 import { barCells, percentOf, stepLabel, visibleSteps } from '../hooks/lib/zen'
 import { barFill, cacheState, CACHE_TTL_MS, colorFor, fmtDuration, fmtTokens } from '../hooks/lib/status'
 
@@ -79,6 +90,13 @@ describe('themes', () => {
     expect(theme.overrides.userMessageBackground).toMatch(/^#[0-9a-f]{6}$/)
   })
 
+  test('sets every Claude Code color token, so none falls back to the base theme', async () => {
+    const { overrides } = toClaudeTheme(toPalette(DRACULA)!)
+    expect(Object.keys(overrides)).toHaveLength(72)
+    for (const key of ['selectionBg', 'skill', 'clawd_body', 'rate_limit_fill', 'orange_FOR_SUBAGENTS_ONLY', 'rainbow_violet_shimmer'])
+      expect(overrides[key]).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
   test('maps a palette to a Windows Terminal scheme', async () => {
     const scheme = toWtScheme(toPalette(DRACULA)!)
     expect(scheme.name).toBe('Dracula Default')
@@ -100,6 +118,28 @@ describe('themes', () => {
     expect(JSON.stringify(settings)).toContain('"colorScheme":"Dracula Default"')
     targetProfile(settings, null).colorScheme = 'Nord'
     expect((settings.profiles as { defaults: { colorScheme: string } }).defaults.colorScheme).toBe('Nord')
+  })
+
+  test("themes the profile Claude Code runs in, then gives it its own scheme back", async () => {
+    const mine = { guid: '{ABC}', name: 'PowerShell', colorScheme: 'One Half Dark' }
+    const other = { guid: '{DEF}', name: 'Ubuntu' }
+    const settings: WtSettings = { profiles: { defaults: { colorScheme: 'CGA' }, list: [mine, other] }, schemes: [{ name: 'Mine' }] }
+    const profile = findProfile(settings, '{abc}')!
+    expect(profile).toBe(mine)
+
+    withProfileTheme(settings, profile, toPalette(DRACULA), 'One Half Dark')
+    expect(mine.colorScheme).toBe(WT_SCHEME)
+    expect(other).toEqual({ guid: '{DEF}', name: 'Ubuntu' })
+    expect(settings.schemes).toEqual([{ name: 'Mine' }, { ...toWtScheme(toPalette(DRACULA)!), name: WT_SCHEME }])
+
+    withProfileTheme(settings, profile, null, 'One Half Dark')
+    expect(mine.colorScheme).toBe('One Half Dark')
+    expect(settings.schemes).toEqual([{ name: 'Mine' }])
+
+    // A profile with no scheme of its own goes back to following the defaults.
+    withProfileTheme(settings, other, toPalette(DRACULA))
+    withProfileTheme(settings, other, null)
+    expect(other).toEqual({ guid: '{DEF}', name: 'Ubuntu' })
   })
 
   test('writes OSC sequences for macOS and Linux terminals', async () => {
