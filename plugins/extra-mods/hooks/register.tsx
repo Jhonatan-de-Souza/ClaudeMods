@@ -78,6 +78,8 @@ const PANE_SIZE = { rows: 26, columns: 56 }
 // Used until the terminal's own background is known: just short of pure black.
 const PANE_BACKGROUND = '#0b0b0b'
 const MENU_NAME = 'extra-mods'
+// Room the engine's own mode label takes left of the hint row (⏵⏵ auto mode on · ).
+const MODE_LABEL_COLUMNS = 22
 // The slug of the Claude Code theme the mod writes: ~/.claude/themes/extra-mods.json.
 const CLAUDE_THEME = 'extra-mods'
 
@@ -455,7 +457,7 @@ async function refreshStatus($: EngineInterface) {
     }))
   const snapshot: StatusSnapshot = {
     model,
-    dir: cwd.replace(/[\/]+$/, '').split(/[\/]/).pop() || cwd,
+    dir: cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || cwd,
     branch,
     ctxPercent: usage.context.percent ?? null,
     ctxTokens: usage.context.tokens ?? null,
@@ -828,8 +830,8 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   ])
 }
 
-// The area under the prompt: with the status line on, its rows with the Claude
-// Tools button at the end of the stats row; otherwise the hint line and the button.
+// The row under the prompt: with the status line on, the status line with the
+// extra-mods button at its end; otherwise the hint and the button.
 // The engine's hint, on one row: it can carry a second line holding only a
 // separator, which drew as a stray dot under the hint.
 function hintText(hint: string) {
@@ -847,9 +849,12 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
   const button = <Button key="tools-toggle" plain label={label} onPress={() => toggleMenu($)} />
   const snapshot = (await read($, statusOn)) ? await read($, status) : null
 
+  // The engine keeps its mode label (⏵⏵ auto mode on ·) in a column of its own
+  // to the left of this tree, so the tree grows into the rest of one row: a
+  // full-width or multi-row tree wraps that label and pushes everything right.
   if (snapshot === null) {
     return (
-      <Box justifyContent="space-between" width="100%" gap={1}>
+      <Box justifyContent="space-between" flexGrow={1} gap={1}>
         <Text dimColor wrap="truncate">
           {hintText(e.props.hint)}
         </Text>
@@ -878,12 +883,28 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
     resetText: l.resetsAt === null ? '' : ` (resets ${fmtDuration(l.resetsAt - now)})`,
   }))
   const cacheText = cache === null ? '' : `● cache ${cache}`
-  // The most detailed level that leaves room for the button on the same row.
-  const room = columns - label.length - 4
-  const detail: Detail =
-    ([0, 1, 2] as const).find(d => statsWidth(`${ctxPercent}%${ctxTokens}`, limits, cacheText, d) <= room) ?? 2
+  const model = prettyModel(snapshot.model)
+  const head = `${model} · ${snapshot.dir}${snapshot.branch === '' ? '' : ` · ${snapshot.branch}`}`
+  // One row beside the engine's mode label (about MODE_LABEL_COLUMNS wide):
+  // the most detailed level that leaves room for the button; past the least
+  // detailed one, the model and folder go too.
+  const room = columns - MODE_LABEL_COLUMNS - label.length - 4
+  const fits = (d: Detail, withHead: boolean) =>
+    statsWidth(`${ctxPercent}%${ctxTokens}`, limits, cacheText, d) + (withHead ? head.length + 5 : 0) <= room
+  const showHead = fits(2, true)
+  const detail: Detail = ([0, 1, 2] as const).find(d => fits(d, showHead)) ?? 2
 
   const stats = [
+    showHead && (
+      <Text key="head">
+        <Text color={STATUS_CYAN}>{model}</Text>
+        <Text dimColor> · </Text>
+        <Text>{snapshot.dir}</Text>
+        {snapshot.branch !== '' && <Text dimColor> · </Text>}
+        {snapshot.branch !== '' && <Text color={STATUS_GREEN}>{snapshot.branch}</Text>}
+        {sep}
+      </Text>
+    ),
     <Text key="ctx">
       <Text>ctx </Text>
       {detail === 0 && bar(ctxPercent, colorFor(ctxPercent))}
@@ -909,23 +930,20 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
   ]
 
   return (
-    <Box flexDirection="column" width="100%">
-      <Text wrap="truncate">
-        <Text color={STATUS_CYAN}>{snapshot.model}</Text>
-        <Text dimColor> · </Text>
-        <Text>{snapshot.dir}</Text>
-        {snapshot.branch !== '' && <Text dimColor> · </Text>}
-        {snapshot.branch !== '' && <Text color={STATUS_GREEN}>{snapshot.branch}</Text>}
-      </Text>
-      <Box justifyContent="space-between" gap={1}>
-        <Text wrap="truncate">{stats}</Text>
-        {button}
-      </Box>
-      <Text dimColor wrap="truncate">
-        {hintText(e.props.hint)}
-      </Text>
+    <Box justifyContent="space-between" flexGrow={1} gap={1}>
+      <Text wrap="truncate">{stats}</Text>
+      {button}
     </Box>
   )
+}
+
+// `claude-opus-5-5` (what $.session.model() gives) as `Opus 5.5`; a name
+// that is not a Claude model id stays as it is.
+function prettyModel(id: string) {
+  const match = id.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?/i)
+  if (match === null) return id
+  const [, family = '', major = '', minor] = match
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)} ${major}${minor === undefined ? '' : `.${minor}`}`
 }
 
 // The status line's clock: reset countdowns and the cache state move with it.
