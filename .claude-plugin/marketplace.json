@@ -1,0 +1,11 @@
+{
+  "name": "jdsjh-mods",
+  "owner": { "name": "jdsjh" },
+  "plugins": [
+    {
+      "name": "zen-toolbox",
+      "source": "./plugins/zen-toolbox",
+      "description": "Claude Tools menu: Zen mode, terminal themes, effort and mode controls."
+    }
+  ]
+}
