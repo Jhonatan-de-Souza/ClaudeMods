@@ -232,4 +232,16 @@ describe('toolbox', () => {
     expect(await progress.find({ text: /Step 2 of 4/ })).toBeDefined()
     expect(await progress.find({ text: /Fetch data/ })).toBeDefined()
   })
+
+  test('the privacy page shows this session and the next', async ($, on) => {
+    engineDraws(on)
+    const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
+    await corner.press({ key: 'tools-toggle' })
+    expect(await menu.find({ key: 'open-privacy' })).toBeDefined()
+    await menu.press({ key: 'open-privacy' })
+    expect(await menu.find({ key: 'privacy-on' })).toBeDefined()
+    expect(await menu.find({ key: 'privacy-off' })).toBeDefined()
+    expect(await menu.find({ text: /next session/ })).toBeDefined()
+  })
 })

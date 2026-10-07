@@ -1,4 +1,4 @@
-export type Panel = 'main' | 'zen' | 'themes' | 'mode' | 'status'
+export type Panel = 'main' | 'zen' | 'themes' | 'mode' | 'status' | 'privacy'
 
 export type ZenTheme = 'blue' | 'dark' | 'light' | 'green' | 'rainbow' | 'custom'
 
@@ -58,6 +58,8 @@ declare module 'claude-code' {
       sessionEffort: Effort | null
       paneBg: string | null
       defaultModeChosen: boolean
+      privacyNow: boolean
+      privacyNext: boolean
     }
   }
 }
