@@ -8,7 +8,7 @@ Mods para o [Claude Code](https://claude.com/claude-code). Um plugin, `extra-mod
 |---|---|
 | **Modo Zen** | Esconde as chamadas de ferramentas e a saída delas, e mostra o plano do Claude como uma barra de progresso acima do prompt |
 | **Tema** | Colore o Claude Code com qualquer tema do [terminalcolors.com](https://terminalcolors.com), com prévia ao vivo |
-| **Modo** | Define o nível de esforço (effort) e o modo de permissão com que as novas sessões começam |
+| **Modo** | Define o modelo, o nível de esforço (effort) e o modo de permissão com que as novas sessões começam |
 | **Linha de status** | Modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache, com o botão na mesma linha |
 
 ## Instalação
@@ -69,6 +69,7 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 
 ### 3. Modo
 
+- **Modelo:** Fable, Opus, Sonnet ou Haiku, ou **↺ Claude Code's default**. O modelo da sessão aparece marcado. Escolher um roda o próprio `/model` do Claude Code, então a troca é real: o `/model` e a status line também mostram.
 - **Esforço (effort):** `low` / `medium` / `high` / `xhigh` / `max`. O nível que a sessão está usando aparece marcado. Um nível que você escolhe vale para todas as requisições a partir dali, e fica salvo.
 - **Rodando em:** o modo de permissão atual. Um mod não consegue trocar o modo de uma sessão em andamento; para isso use **shift+tab**.
 - **Novas sessões começam em:** ask, plan, accept edits, auto ou bypass permissions, cada um na cor do próprio Claude Code. O modo atual aparece marcado com **· now**. Sua escolha é salva como `permissions.defaultMode` em `~/.claude/settings.json` (com backup antes).

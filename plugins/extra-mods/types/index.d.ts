@@ -56,6 +56,7 @@ declare module 'claude-code' {
       lastResponseAt: number | null
       statusClock: number
       sessionEffort: Effort | null
+      sessionModel: string | null
       paneBg: string | null
       defaultModeChosen: boolean
     }

@@ -8,7 +8,7 @@ Mods for [Claude Code](https://claude.com/claude-code). One plugin, `extra-mods`
 |---|---|
 | **Zen mode** | Hides tool calls and their output, and shows Claude's plan as a progress band above the prompt |
 | **Theme** | Colors Claude Code with any theme from [terminalcolors.com](https://terminalcolors.com), with live preview |
-| **Mode** | Sets the effort level, and the permission mode new sessions start in |
+| **Mode** | Sets the model, the effort level, and the permission mode new sessions start in |
 | **Status line** | Model, folder, branch, context, 5h/7d limits and cache state, with the button on the same row |
 
 ## Install
@@ -69,6 +69,7 @@ Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude C
 
 ### 3. Mode
 
+- **Model:** Fable, Opus, Sonnet or Haiku, or **↺ Claude Code's default**. The model the session runs on is marked. Picking one runs Claude Code's own `/model`, so the switch is real: `/model` and the status line show it too.
 - **Effort:** `low` / `medium` / `high` / `xhigh` / `max`. The level the session is using is marked. A level you pick applies to every request from then on, and is remembered.
 - **Running in:** the current permission mode. A mod can't switch the mode of a running session, so use **shift+tab** for that.
 - **New sessions start in:** ask, plan, accept edits, auto or bypass permissions, each in Claude Code's own color. The current mode is marked **· now**. Your pick is saved as `permissions.defaultMode` in `~/.claude/settings.json` (backed up first).

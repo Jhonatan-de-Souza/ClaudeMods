@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, RenderInput, Timer } from 'claude-code'
 
 import type { Effort, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
-import { EFFORTS, type Mode, MODES, modeLabel } from './lib/modes'
+import { EFFORTS, type Mode, MODELS, MODES, modeLabel, modelFamily } from './lib/modes'
 import {
   BAR_WIDTH,
   barFill,
@@ -66,6 +66,7 @@ const defaultMode = atom({ plugin: 'extra-mods', key: 'defaultMode' } as const, 
 const preview = atom({ plugin: 'extra-mods', key: 'preview' } as const, null)
 const isDownloading = atom({ plugin: 'extra-mods', key: 'isDownloading' } as const, false)
 const sessionEffort = atom({ plugin: 'extra-mods', key: 'sessionEffort' } as const, null)
+const sessionModel = atom({ plugin: 'extra-mods', key: 'sessionModel' } as const, null)
 const paneBg = atom({ plugin: 'extra-mods', key: 'paneBg' } as const, null)
 const defaultModeChosen = atom({ plugin: 'extra-mods', key: 'defaultModeChosen' } as const, false)
 const statusOn = atom({ plugin: 'extra-mods', key: 'statusOn' } as const, false)
@@ -440,6 +441,20 @@ async function setEffort($: EngineInterface, level: Effort) {
   $.ui.toast(`Effort: ${level}`)
 }
 
+// Switches the session's model through Claude Code's own `/model`, so /model,
+// the status line and the requests all agree. It runs once the session is idle.
+async function setModel($: EngineInterface, alias: string) {
+  await $.command.run({ command: 'model', args: alias })
+  const id = await $.session.model()
+  await update($, sessionModel, () => id)
+  if (await read($, statusOn)) void refreshStatus($).catch(() => {})
+  $.ui.toast(`Model: ${prettyModel(id)}`)
+}
+
+async function trackModel($: EngineInterface, id: string) {
+  if (id !== (await read($, sessionModel))) await update($, sessionModel, () => id)
+}
+
 // permissions.defaultMode in ~/.claude/settings.json: the mode new sessions
 // start in. A running session's mode is shift+tab's; a mod cannot set it.
 async function setDefaultMode($: EngineInterface, next: Mode) {
@@ -686,6 +701,7 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   const level = (await read($, effort)) ?? (await read($, sessionEffort))
   const background = (await read($, paneBg)) ?? PANE_BACKGROUND
   const running = await read($, mode)
+  const model = await read($, sessionModel)
   const theme = (await read($, themeName)) ?? 'Terminal default'
 
   // A radio row: ● for the chosen one, focusable and pressable.
@@ -837,7 +853,23 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   if (panel === 'mode') {
     // Marked: what this session runs in, until a new-session mode is chosen here.
     const next = (await read($, defaultModeChosen)) ? await read($, defaultMode) : (running ?? (await read($, defaultMode)))
+    const family = modelFamily(model)
     return page('Mode', [
+      heading('Model'),
+      ...MODELS.map(m =>
+        option(`model-${m.alias}`, m.label, m.alias === family, () =>
+          setModel($, m.alias).catch((error: unknown) => $.ui.toast(`Could not switch the model: ${String(error)}`)),
+        ),
+      ),
+      <Button
+        key="model-default"
+        plain
+        dimColor
+        label="↺ Claude Code's default"
+        onPress={() =>
+          setModel($, 'default').catch((error: unknown) => $.ui.toast(`Could not switch the model: ${String(error)}`))
+        }
+      />,
       heading('Effort'),
       ...EFFORTS.map(l => option(`effort-${l}`, l, l === level, () => setEffort($, l))),
       heading('Running in'),
@@ -890,7 +922,12 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   return page(MENU_NAME, [
     row('1', 'Zen mode', isZenOn ? `on · ${zenThemeNow} band` : 'off', 'zen'),
     row('2', 'Theme', theme, 'themes'),
-    row('3', 'Mode', `${running === null ? '—' : modeLabel(running)} · effort ${level ?? 'default'}`, 'mode'),
+    row(
+      '3',
+      'Mode',
+      `${model === null ? '' : `${prettyModel(model)} · `}${running === null ? '—' : modeLabel(running)} · effort ${level ?? 'default'}`,
+      'mode',
+    ),
     row('4', 'Status line', (await read($, statusOn)) ? 'on' : 'off', 'status'),
   ])
 }
@@ -1056,6 +1093,9 @@ export const register: Register = on => {
     await loadThemes($)
     await loadStatus($)
     await loadSessionEffort($)
+    try {
+      await trackModel($, await $.session.model())
+    } catch {}
     await refreshPaneBg($)
     statusTicker?.cancel()
     statusTicker = $.clock.every(15_000, () => {
@@ -1247,11 +1287,15 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Mode: the chosen effort rides on every model request of the session.
+  // Mode: the chosen effort rides on every model request of the session; the
+  // main loop's model is noted for the Mode page.
   on('turn.step', async function* ($, e, next) {
     const level = await read($, effort)
     // The session's own level, as the engine would send it, before ours replaces it.
-    if (e.agentId === undefined) await trackEffort($, e.effort)
+    if (e.agentId === undefined) {
+      await trackEffort($, e.effort)
+      await trackModel($, e.model)
+    }
     const answered = yield* next(level !== null && e.effort !== undefined ? { ...e, effort: level } : e)
     // The main loop's responses keep the prompt cache warm; subagents' do not.
     if (e.agentId === undefined && answered.usage !== null) {

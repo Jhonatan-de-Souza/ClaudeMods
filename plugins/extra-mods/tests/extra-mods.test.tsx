@@ -258,6 +258,30 @@ describe('toolbox', () => {
     expect(await menu.find({ text: /effort high/ })).toBeDefined()
   })
 
+  test('the mode page switches the model through /model', async ($, on) => {
+    engineDraws(on)
+    let current = 'claude-opus-5-5'
+    const ran: string[] = []
+    on('command.run', { command: 'model' }, async (_$, e) => {
+      ran.push(e.args)
+      current = e.args === 'sonnet' ? 'claude-sonnet-5-5' : current
+      return { text: `Set model to ${e.args}` }
+    })
+    on('session.model', () => ({ value: current }))
+    const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
+    const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    await corner.press({ key: 'tools-toggle' })
+    await menu.press({ key: 'open-mode' })
+    for (const alias of ['fable', 'opus', 'sonnet', 'haiku', 'default']) {
+      expect(await menu.find({ key: `model-${alias}` })).toBeDefined()
+    }
+    await menu.press({ key: 'model-sonnet' })
+    expect(ran).toEqual(['sonnet'])
+    expect((await menu.find({ key: 'model-sonnet' }))?.text).toMatch(/● Sonnet/)
+    await menu.press({ key: 'tools-back' })
+    expect(await menu.find({ text: /Sonnet 5\.5 · / })).toBeDefined()
+  })
+
   test("Claude's zen_progress calls fill the band", async ($, on) => {
     engineDraws(on)
     mock.clock(on)
