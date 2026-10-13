@@ -1097,6 +1097,19 @@ async function startTask($: EngineInterface, title: string) {
   })
 }
 
+// The kept settings, back into the session's values: at the session's start,
+// and after a /clear, which begins a new session with no session.start.
+async function restore($: EngineInterface) {
+  await loadSettings($)
+  await loadThemes($)
+  await loadStatus($)
+  await loadSessionEffort($)
+  try {
+    await trackModel($, await $.session.model())
+  } catch {}
+  await refreshPaneBg($)
+}
+
 // Hooks ------------------------------------------------------------------------
 
 // Watching hooks end in .catch(... next(e)): when one fails, the event goes on.
@@ -1106,23 +1119,25 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     // A preview left open as the session ends gives way to the kept theme,
     // and this tab's Windows Terminal profile gets its own colors back.
+    // A /clear goes on in the same process and tab, so the profile keeps the theme.
     try {
       await endPreview($)
-      if (await isWindows($)) await paintWindowsTerminal($, null)
+      if (e.reason !== 'clear' && (await isWindows($))) await paintWindowsTerminal($, null)
     } catch {}
     return next(e)
   }).catch(($, e, next) => next(e))
 
+  // /clear: a new session, with the engine's defaults in every value and no
+  // session.start, so the kept settings (Zen, effort, the model's mark) come back here.
+  on('classic.SessionStart', async ($, e, next) => {
+    const ran = await next(e)
+    if (e.source === 'clear') await restore($)
+    return ran
+  }).catch(($, e, next) => next(e))
+
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    await loadSettings($)
-    await loadThemes($)
-    await loadStatus($)
-    await loadSessionEffort($)
-    try {
-      await trackModel($, await $.session.model())
-    } catch {}
-    await refreshPaneBg($)
+    await restore($)
     statusTicker?.cancel()
     statusTicker = $.clock.every(15_000, () => {
       void update($, statusClock, () => Date.now())

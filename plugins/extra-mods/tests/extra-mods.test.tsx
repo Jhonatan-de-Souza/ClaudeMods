@@ -329,6 +329,26 @@ describe('toolbox', () => {
     expect(ran).toEqual(['tasks'])
   })
 
+  test('a /clear brings back the kept Zen mode, effort and model', async ($, on) => {
+    // The session after a /clear: every value at its default, the store as it was kept.
+    mock.store(on, { zenOn: true, zenTheme: 'rainbow', effort: 'medium', statusOn: false })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+    on('ui.open', () => ({ value: { isPlaced: true as const } }))
+    on('ui.close', () => ({ value: undefined }))
+    on('env.get', () => ({ value: '/home/me' }))
+    on('fs.exists', () => ({ value: false }))
+    on('session.model', () => ({ value: 'claude-sonnet-5-5' }))
+    on('classic.SessionStart', () => ({}))
+    const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
+    const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    await corner.press({ key: 'tools-toggle' })
+    expect(await menu.find({ text: /on · rainbow band/ })).toBeUndefined()
+
+    await $.classic.SessionStart({ source: 'clear' })
+    expect(await menu.find({ text: /on · rainbow band/ })).toBeDefined()
+    expect(await menu.find({ text: /Sonnet 5\.5 · .* · effort medium/ })).toBeDefined()
+  })
+
   test("Claude's zen_progress calls fill the band", async ($, on) => {
     engineDraws(on)
     mock.clock(on)
