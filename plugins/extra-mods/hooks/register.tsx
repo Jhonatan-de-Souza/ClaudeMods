@@ -1,8 +1,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, RenderInput, Timer } from 'claude-code'
 
-import type { Effort, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
-import { EFFORTS, type Mode, MODELS, MODES, modeLabel, modelFamily } from './lib/modes'
+import type { Effort, Lang, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
+import { EFFORT_HEAT, EFFORTS, type Mode, MODELS, MODES, modeLabel, modelFamily } from './lib/modes'
+import { isLang, LANGS, modeName, phrase, type Phrase } from './lib/i18n'
 import {
   backgroundPill,
   BAR_WIDTH,
@@ -37,6 +38,7 @@ import {
   colorsFor,
   elapsed,
   percentOf,
+  RAINBOW,
   stepLabel,
   visibleSteps,
   ZEN_PROMPT,
@@ -61,11 +63,11 @@ const now = atom({ plugin: 'extra-mods', key: 'now' } as const, 0)
 const themes = atom({ plugin: 'extra-mods', key: 'themes' } as const, [])
 const themeName = atom({ plugin: 'extra-mods', key: 'themeName' } as const, null)
 const themeQuery = atom({ plugin: 'extra-mods', key: 'themeQuery' } as const, '')
+const themeScroll = atom({ plugin: 'extra-mods', key: 'themeScroll' } as const, 0)
 const themeStatus = atom({ plugin: 'extra-mods', key: 'themeStatus' } as const, '')
 const effort = atom({ plugin: 'extra-mods', key: 'effort' } as const, null)
 const mode = atom({ plugin: 'extra-mods', key: 'mode' } as const, null)
 const defaultMode = atom({ plugin: 'extra-mods', key: 'defaultMode' } as const, null)
-const preview = atom({ plugin: 'extra-mods', key: 'preview' } as const, null)
 const isDownloading = atom({ plugin: 'extra-mods', key: 'isDownloading' } as const, false)
 const sessionEffort = atom({ plugin: 'extra-mods', key: 'sessionEffort' } as const, null)
 const sessionModel = atom({ plugin: 'extra-mods', key: 'sessionModel' } as const, null)
@@ -74,6 +76,7 @@ const defaultModeChosen = atom({ plugin: 'extra-mods', key: 'defaultModeChosen' 
 const statusOn = atom({ plugin: 'extra-mods', key: 'statusOn' } as const, false)
 const status = atom({ plugin: 'extra-mods', key: 'status' } as const, null)
 const lastResponseAt = atom({ plugin: 'extra-mods', key: 'lastResponseAt' } as const, null)
+const lang = atom({ plugin: 'extra-mods', key: 'lang' } as const, 'en')
 const statusClock = atom({ plugin: 'extra-mods', key: 'statusClock' } as const, 0)
 
 // The menu's pane: a sidebar in the fullscreen layout, a block above the prompt otherwise.
@@ -176,7 +179,7 @@ async function indexThemes($: EngineInterface) {
     for (const entry of await $.fs.list(dir)) {
       if (entry.kind !== 'file' || !entry.name.endsWith('.yaml')) continue
       const palette = toPalette(await $.fs.read(`${dir}/${entry.name}`))
-      if (palette !== null) list.push({ slug: entry.name.replace(/\.yaml$/, ''), name: palette.name })
+      if (palette !== null) list.push({ slug: entry.name.replace(/\.yaml$/, ''), name: palette.name, colors: palette.normal })
     }
   }
   list.sort((a, b) => a.name.localeCompare(b.name))
@@ -401,28 +404,13 @@ async function paintTerminal($: EngineInterface, slug: string | null) {
 }
 
 // Keeps a theme (null: the terminal's own colors) for this and later sessions.
+// The menu's pane takes its background too.
 async function applyTheme($: EngineInterface, slug: string | null) {
   const palette = await paintTerminal($, slug)
-  await update($, preview, () => null)
   await update($, themeName, () => palette?.name ?? null)
   if (palette === null) await $.store.delete('theme')
   else await $.store.set('theme', { slug: slug!, name: palette.name })
-  await sayTheme($, palette ? `Kept ${palette.name}` : "Back to Claude Code's previous theme")
-}
-
-// Shows a theme on the terminal without keeping it.
-async function previewTheme($: EngineInterface, slug: string) {
-  const palette = await paintTerminal($, slug)
-  await update($, preview, () => slug)
-  await sayTheme($, `Previewing ${palette?.name ?? slug}: Enter or click keeps it`)
-}
-
-// Puts the kept theme back after a preview that was not kept.
-async function endPreview($: EngineInterface) {
-  if ((await read($, preview)) === null) return
-  const kept = (await $.store.get('theme')) as { slug: string } | undefined
-  await paintTerminal($, kept?.slug ?? null)
-  await update($, preview, () => null)
+  await refreshPaneBg($)
   await sayTheme($, '')
 }
 
@@ -541,11 +529,13 @@ async function loadSettings($: EngineInterface) {
     zenTheme: (await $.store.get('zenTheme')) as ZenTheme | undefined,
     zenCustom: (await $.store.get('zenCustom')) as ZenColors | undefined,
     effort: (await $.store.get('effort')) as Effort | undefined,
+    lang: await $.store.get('lang'),
   }
   if (saved.zenOn !== undefined) await update($, zenOn, () => saved.zenOn!)
   if (saved.zenTheme !== undefined && ZEN_THEMES.includes(saved.zenTheme)) await update($, zenTheme, () => saved.zenTheme!)
   if (saved.zenCustom !== undefined) await update($, zenCustom, () => saved.zenCustom!)
   if (saved.effort !== undefined && EFFORTS.includes(saved.effort)) await update($, effort, () => saved.effort!)
+  if (isLang(saved.lang)) await update($, lang, () => saved.lang as Lang)
   try {
     const { permissions } = await $.settings.read({ source: 'user' })
     const configured = (permissions as { defaultMode?: string } | undefined)?.defaultMode
@@ -706,266 +696,421 @@ async function drawZenBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   )
 }
 
-// Moves the menu to another page; leaving the themes ends any preview.
+// Moves the menu to another tab.
 async function goTo($: EngineInterface, panel: Panel) {
-  const from = await read($, menu)
-  if (from === 'themes' && panel !== 'themes') await endPreview($)
   await update($, menu, () => panel)
-  if (panel === 'themes') void ensureThemes($)
+  if (panel === 'themes') {
+    await revealKept($)
+    void ensureThemes($)
+  }
 }
 
 // Opens the menu in its pane with the keyboard, or closes it.
-async function toggleMenu($: EngineInterface, panel: Panel = 'main') {
+async function toggleMenu($: EngineInterface, panel: Panel = 'zen') {
   if ((await read($, menu)) !== null) {
     // A plugin's own close skips its own ui.close hook, so reset here too.
     await $.ui.close({ id: PANE })
-    await endPreview($)
     await update($, menu, () => null)
     return
   }
   await update($, menu, () => panel)
-  if (panel === 'themes') void ensureThemes($)
+  if (panel === 'themes') {
+    await revealKept($)
+    void ensureThemes($)
+  }
   await $.ui.open({ id: PANE, title: MENU_NAME, focus: true, closeOnEscape: true, ...PANE_SIZE })
 }
 
-// The menu, one item per row so the arrow keys walk it top to bottom.
+// The theme list scrolls on its own, inside a pane exactly the body's height,
+// so the tabs above it and the language row under it stay where they are.
+// Rows the themes page takes besides the list: the tab strip (3), the kept
+// theme, the search, the actions, a status line while there is one, the
+// language footer (4), and one spare in case a row wraps.
+const listRows = (bodyRows: number, hasStatus: boolean) => Math.max(3, bodyRows - (3 + 3 + (hasStatus ? 1 : 0) + 4 + 1))
+
+async function foundThemes($: EngineInterface) {
+  const query = (await read($, themeQuery)).trim().toLowerCase()
+  return (await read($, themes)).filter(th => th.name.toLowerCase().includes(query))
+}
+
+// Moves the list's window to `top`, kept inside the list.
+async function scrollThemes($: EngineInterface, top: number, bodyRows: number) {
+  const rows = listRows(bodyRows, (await read($, themeStatus)) !== '')
+  const last = Math.max(0, (await foundThemes($)).length - rows)
+  const at = Math.max(0, Math.min(last, top))
+  if (at !== (await read($, themeScroll))) await update($, themeScroll, () => at)
+}
+
+// Opens the list with the kept theme in view, a few rows down from the top.
+async function revealKept($: EngineInterface) {
+  const kept = ((await $.store.get('theme')) as { slug: string } | undefined)?.slug
+  const at = kept === undefined ? -1 : (await foundThemes($)).findIndex(th => th.slug === kept)
+  await update($, themeScroll, () => Math.max(0, at - 3))
+}
+
+async function setLang($: EngineInterface, next: Lang) {
+  await update($, lang, () => next)
+  await $.store.set('lang', next)
+}
+
+const TABS: readonly { panel: Exclude<Panel, 'main'>; name: Phrase }[] = [
+  { panel: 'zen', name: 'tabZen' },
+  { panel: 'themes', name: 'tabThemes' },
+  { panel: 'mode', name: 'tabMode' },
+  { panel: 'status', name: 'tabStatus' },
+]
+
+// Text in the rainbow, one color a letter.
+const rainbow = (text: string) => [...text].map((ch, i) => ({ ch, color: RAINBOW[i % RAINBOW.length]! }))
+
+// The menu: a tab row with its close, the tab's settings, the language row.
+// Each setting is a chip, one per Button, so the arrow keys walk them.
 async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel) {
   if (e.surface !== 'terminal' && e.surface !== 'desktop') return null
   const { Box, Text, Button, Input } = $.ui.resolve(e)
-  const isZenOn = await read($, zenOn)
-  const zenThemeNow = await read($, zenTheme)
-  const level = (await read($, effort)) ?? (await read($, sessionEffort))
+  const tab: Exclude<Panel, 'main'> = panel === 'main' ? 'zen' : panel
+  const lng = await read($, lang)
+  const t = (key: Phrase, vars?: Record<string, string | number>) => phrase(lng, key, vars)
   const background = (await read($, paneBg)) ?? PANE_BACKGROUND
-  const running = await read($, mode)
-  const model = await read($, sessionModel)
-  const theme = (await read($, themeName)) ?? 'Terminal default'
+  const columns = e.props.bodyColumns ?? PANE_SIZE.columns
+  const rule = <Text dimColor>{'─'.repeat(Math.max(10, columns - 2))}</Text>
 
-  // A radio row: ● for the chosen one, focusable and pressable.
-  const option = (key: string, label: string, isOn: boolean, onPress: () => unknown, swatch?: string) => (
-    <Box key={`row-${key}`} gap={1}>
-      {swatch !== undefined && <Text color={swatch}>■</Text>}
-      <Button key={key} plain label={`${isOn ? '●' : '○'} ${label}`} dimColor={!isOn} onPress={onPress} />
+  // A chip: ● and bold for the chosen one, ○ and dim for the rest.
+  const chip = (key: string, label: string, isOn: boolean, onPress: () => unknown, color?: string) => (
+    <Button key={key} plain label={label} onPress={onPress}>
+      <Text color={isOn ? 'claude' : 'subtle'}>{isOn ? '● ' : '○ '}</Text>
+      <Text bold={isOn} color={color} dimColor={!isOn && color === undefined}>
+        {label}
+      </Text>
+    </Button>
+  )
+  const chips = (key: string, items: RenderChildren[]) => (
+    <Box key={key} flexWrap="wrap" columnGap={2}>
+      {items}
     </Box>
   )
-  const heading = (text: string) => (
-    <Box key={`h-${text}`} marginTop={1}>
-      <Text bold>{text}</Text>
+  const heading = (text: string, extra?: RenderChildren) => (
+    <Box key={`h-${text}`} marginTop={1} gap={1}>
+      <Text dimColor>{text}</Text>
+      {extra}
     </Box>
   )
-  const page = (title: string, rows: RenderChildren[]) => (
-    <Box
-      flexDirection="column"
-      paddingX={1}
-      backgroundColor={background}
-      width={e.props.bodyColumns}
-      minHeight={e.props.scroll.bodyRows}
-    >
-      <Box justifyContent="space-between">
-        <Text bold color="claude">
-          ◆ {title}
-        </Text>
-        {title !== MENU_NAME && (
-          <Button key="tools-back" plain dimColor hotkey="b" label="← back" onPress={() => goTo($, 'main')} />
-        )}
-      </Box>
-      {rows}
-      <Box marginTop={1}>
-        <Text dimColor>↑↓ move · enter select · esc close</Text>
-      </Box>
-    </Box>
+  const strip = (colors: readonly string[], cells: number) => (
+    <Text>
+      {Array.from({ length: cells }, (_, i) => (
+        <Text color={colors[Math.floor((i * colors.length) / cells)]}>█</Text>
+      ))}
+    </Text>
   )
 
-  if (panel === 'zen') {
+  const rows: RenderChildren[] = []
+
+  if (tab === 'zen') {
+    const isZenOn = await read($, zenOn)
+    const zenThemeNow = await read($, zenTheme)
     const custom = await read($, zenCustom)
-    return page('Zen mode', [
+    rows.push(
       <Text key="zen-about" dimColor>
-        Hides tool calls and their output. Shows Claude's text and a progress band above the prompt.
+        {t('zenAbout')}
       </Text>,
-      heading('Zen mode'),
-      option('zen-on', 'On', isZenOn, () => setZenOn($, true)),
-      option('zen-off', 'Off', !isZenOn, () => setZenOn($, false)),
-      heading('Band color'),
-      ...ZEN_THEMES.map(t => option(`zen-theme-${t}`, t, t === zenThemeNow, () => setZenTheme($, t), colorsFor(t, custom).bar)),
-      zenThemeNow === 'custom' && (
+      heading(t('zenMode')),
+      chips('zen-onoff', [
+        chip('zen-on', t('on'), isZenOn, () => setZenOn($, true)),
+        chip('zen-off', t('off'), !isZenOn, () => setZenOn($, false)),
+      ]),
+      heading(t('bandColor')),
+      ...ZEN_THEMES.map(theme => {
+        const isOn = theme === zenThemeNow
+        const colors = theme === 'rainbow' ? RAINBOW : [colorsFor(theme, custom).bar]
+        return (
+          <Button key={`zen-theme-${theme}`} plain label={theme} onPress={() => setZenTheme($, theme)}>
+            <Text color={isOn ? 'claude' : 'subtle'}>{isOn ? '● ' : '○ '}</Text>
+            {strip(colors, 8)}
+            <Text bold={isOn} dimColor={!isOn}>
+              {` ${theme}`}
+            </Text>
+          </Button>
+        )
+      }),
+    )
+    if (zenThemeNow === 'custom') {
+      rows.push(
         <Box key="zen-custom" flexDirection="column">
           {(['bar', 'text', 'border'] as const).map(part => (
             <Input
               key={`zen-color-${part}`}
-              label={`${part} color`}
+              label={`${part} ${t('colorSuffix')}`}
               value={custom[part]}
               placeholder="#3b82f6"
               submitLabel="set"
               onSubmit={value => setZenColor($, part, value)}
             />
           ))}
-        </Box>
-      ),
-    ])
+        </Box>,
+      )
+    }
   }
 
-  if (panel === 'themes') {
+  if (tab === 'themes') {
     const list = await read($, themes)
     const query = await read($, themeQuery)
     const status = await read($, themeStatus)
-    const previewing = await read($, preview)
     const busy = await read($, isDownloading)
     const kept = ((await $.store.get('theme')) as { slug: string } | undefined)?.slug ?? null
-    const found = list.filter(t => t.name.toLowerCase().includes(query.trim().toLowerCase()))
+    const found = await foundThemes($)
     if (list.length === 0) {
-      return page('Theme', [
+      rows.push(
         <Text key="themes-wait" dimColor>
-          {status || 'Getting the themes from terminalcolors.com…'}
+          {status || t('themesWait')}
         </Text>,
-        !busy && <Button key="themes-download" plain label="↻ Try again" onPress={() => ensureThemes($)} />,
-      ])
+      )
+      if (!busy) rows.push(<Button key="themes-download" plain label={t('themesRetry')} onPress={() => ensureThemes($)} />)
+    } else {
+      const top = await read($, themeScroll)
+      const shown = listRows(e.props.scroll.bodyRows, status !== '')
+      const below = Math.max(0, found.length - top - shown)
+      rows.push(
+        <Box key="themes-current" justifyContent="space-between" gap={1} flexShrink={0}>
+          <Text wrap="truncate">
+            <Text dimColor>{t('kept')} </Text>
+            <Text bold>{(await read($, themeName)) ?? t('terminalDefault')}</Text>
+          </Text>
+          <Text dimColor>{top > 0 || below > 0 ? `${top + 1}–${Math.min(found.length, top + shown)}/${found.length}` : ''}</Text>
+        </Box>,
+        <Input
+          key="themes-search"
+          label={t('search')}
+          value={query}
+          placeholder={t('themesCount', { n: list.length })}
+          onInput={value => update($, themeQuery, () => value).then(() => update($, themeScroll, () => 0))}
+          onSubmit={value => update($, themeQuery, () => value).then(() => update($, themeScroll, () => 0))}
+        />,
+        <Box key="themes-actions" columnGap={2} flexWrap="wrap" flexShrink={0}>
+          <Button key="themes-reset" plain dimColor label={t('defaultTheme')} onPress={themeAction($, () => applyTheme($, null))} />
+          <Button key="themes-refresh" plain dimColor label={t('downloadAgain')} onPress={themeAction($, () => downloadThemes($))} />
+        </Box>,
+      )
+      if (status !== '') {
+        rows.push(
+          <Text key="themes-status" color="claude" wrap="truncate">
+            {status}
+          </Text>,
+        )
+      }
+      if (found.length === 0) {
+        rows.push(
+          <Text key="themes-none" dimColor>
+            {t('themesNone', { q: query })}
+          </Text>,
+        )
+      }
+      // A window over the list, a little longer than the room so the focus
+      // ring can step past its last row (the window then follows it).
+      rows.push(
+        ...found.slice(top, top + shown + 2).map(th => {
+          const isKept = th.slug === kept
+          return (
+            <Button key={`theme:${th.slug}`} plain label={th.name} onPress={themeAction($, () => applyTheme($, th.slug))}>
+              <Text color={isKept ? 'claude' : 'subtle'}>{isKept ? '● ' : '○ '}</Text>
+              {th.colors.map(c => (
+                <Text color={c}>■</Text>
+              ))}
+              <Text bold={isKept} dimColor={!isKept}>
+                {` ${th.name}`}
+              </Text>
+            </Button>
+          )
+        }),
+      )
     }
-    return page('Theme', [
-      <Box key="themes-current" gap={1}>
-        <Text dimColor>Kept</Text>
-        <Text bold>{theme}</Text>
-      </Box>,
-      <Input
-        key="themes-search"
-        label="Search"
-        value={query}
-        placeholder={`${list.length} themes`}
-        onInput={value => update($, themeQuery, () => value)}
-        onSubmit={value => update($, themeQuery, () => value)}
-      />,
-      <Text key="themes-hint" dimColor>
-        Arrow through the list to preview. Enter keeps one.
-      </Text>,
-      status !== '' && (
-        <Text key="themes-status" color="claude">
-          {status}
-        </Text>
-      ),
-      found.length === 0 && (
-        <Text key="themes-none" dimColor>
-          No theme matches “{query}”.
-        </Text>
-      ),
-      ...found.map(t => (
-        <Button
-          key={`theme:${t.slug}`}
-          plain
-          autoFocus={t.slug === (previewing ?? kept) ? true : undefined}
-          label={`${t.slug === kept ? '●' : t.slug === previewing ? '◉' : '○'} ${t.name}`}
-          dimColor={t.slug !== kept && t.slug !== previewing}
-          onPress={themeAction($, () => applyTheme($, t.slug))}
-        />
-      )),
-      heading('More'),
-      <Button
-        key="themes-reset"
-        plain
-        dimColor
-        label="Back to Claude Code's previous theme"
-        onPress={themeAction($, () => applyTheme($, null))}
-      />,
-      <Button key="themes-refresh" plain dimColor label="Download the themes again" onPress={themeAction($, () => downloadThemes($))} />,
-    ])
   }
 
-  if (panel === 'status') {
-    const isOn = await read($, statusOn)
-    return page('Status line', [
-      <Text key="status-about" dimColor>
-        Model, folder and branch, then context, 5h and 7d limits and cache, with extra-mods on the same row.
-      </Text>,
-      heading('Status line'),
-      option('status-on', 'On', isOn, () =>
-        setStatusOn($, true).catch((error: unknown) => $.ui.toast(`Could not turn it on: ${String(error)}`)),
-      ),
-      option('status-off', 'Off', !isOn, () =>
-        setStatusOn($, false).catch((error: unknown) => $.ui.toast(`Could not turn it off: ${String(error)}`)),
-      ),
-      <Text key="status-note" dimColor>
-        On takes your own statusLine command out of settings.json; Off puts it back.
-      </Text>,
-    ])
-  }
-
-  if (panel === 'mode') {
+  if (tab === 'mode') {
+    const running = await read($, mode)
+    const family = modelFamily(await read($, sessionModel))
+    const level = (await read($, effort)) ?? (await read($, sessionEffort))
     // Marked: what this session runs in, until a new-session mode is chosen here.
     const next = (await read($, defaultModeChosen)) ? await read($, defaultMode) : (running ?? (await read($, defaultMode)))
-    const family = modelFamily(model)
-    return page('Mode', [
-      heading('Model'),
-      ...MODELS.map(m =>
-        option(`model-${m.alias}`, m.label, m.alias === family, () =>
-          setModel($, m.alias).catch((error: unknown) => $.ui.toast(`Could not switch the model: ${String(error)}`)),
-        ),
-      ),
-      <Button
-        key="model-default"
-        plain
-        dimColor
-        label="↺ Claude Code's default"
-        onPress={() =>
-          setModel($, 'default').catch((error: unknown) => $.ui.toast(`Could not switch the model: ${String(error)}`))
-        }
-      />,
-      heading('Effort'),
-      ...EFFORTS.map(l => option(`effort-${l}`, l, l === level, () => setEffort($, l))),
-      heading('Running in'),
-      <Text key="mode-running">
-        {running === null ? (
-          'Shown after your next prompt'
-        ) : (
-          <Text color={MODE_COLORS[running] ?? 'text'}>{modeLabel(running)}</Text>
+    const switchModel = (alias: string) => () =>
+      setModel($, alias).catch((error: unknown) => $.ui.toast(`Could not switch the model: ${String(error)}`))
+    const meter = (
+      <Text>
+        {EFFORTS.map((l, i) =>
+          level !== null && i <= EFFORTS.indexOf(level) ? (
+            <Text color={level === 'max' ? RAINBOW[i * 2] : (EFFORT_HEAT[l] ?? undefined)}>▰</Text>
+          ) : (
+            <Text dimColor>▱</Text>
+          ),
         )}
-        <Text dimColor> · shift+tab switches it</Text>
+      </Text>
+    )
+    rows.push(
+      heading(t('model')),
+      chips('models', [
+        ...MODELS.map(m => chip(`model-${m.alias}`, m.label, m.alias === family, switchModel(m.alias))),
+        <Button key="model-default" plain dimColor label={t('modelDefault')} onPress={switchModel('default')} />,
+      ]),
+      heading(t('effort'), meter),
+      chips(
+        'efforts',
+        EFFORTS.map(l => {
+          const heat = EFFORT_HEAT[l]
+          const isOn = l === level
+          const press = () => setEffort($, l)
+          if (isOn && heat === null) {
+            return (
+              <Button key={`effort-${l}`} plain label={l} onPress={press}>
+                <Text bold>{'✦ '}</Text>
+                {rainbow(l).map(({ ch, color }) => (
+                  <Text bold color={color}>
+                    {ch}
+                  </Text>
+                ))}
+              </Button>
+            )
+          }
+          if (isOn) {
+            return (
+              <Button key={`effort-${l}`} plain label={l} onPress={press}>
+                <Text bold color="#111111" backgroundColor={heat ?? undefined}>{` ${l} `}</Text>
+              </Button>
+            )
+          }
+          return (
+            <Button key={`effort-${l}`} plain label={l} onPress={press}>
+              {heat === null ? (
+                rainbow(l).map(({ ch, color }) => <Text color={color}>{ch}</Text>)
+              ) : (
+                <Text color={heat}>{l}</Text>
+              )}
+            </Button>
+          )
+        }),
+      ),
+      heading(t('runningIn')),
+      <Text key="mode-running">
+        {running === null ? t('runningUnknown') : <Text color={MODE_COLORS[running] ?? 'text'}>{modeName(lng, running)}</Text>}
+        <Text dimColor> · {t('shiftTab')}</Text>
       </Text>,
-      heading('New sessions start in'),
-      ...MODES.map(m => (
-        <Box key={`row-default-mode-${m}`} gap={1}>
+      heading(t('newSessions')),
+      chips(
+        'default-modes',
+        MODES.map(m => (
           <Button
             key={`default-mode-${m}`}
             plain
-            label={m === next ? '●' : '○'}
-            onPress={() =>
-              setDefaultMode($, m).catch((error: unknown) => $.ui.toast(`Could not save the mode: ${String(error)}`))
-            }
-          />
-          <Text color={MODE_COLORS[m] ?? 'text'} bold={m === next}>
-            {modeLabel(m)}
-          </Text>
-          {m === running && <Text dimColor>· now</Text>}
-        </Box>
-      )),
-      next === 'bypassPermissions' && (
-        <Text key="mode-warning" color="warning">
-          Bypass skips every permission check. Claude Code asks you to confirm it when the next session starts.
-        </Text>
+            label={modeName(lng, m)}
+            onPress={() => setDefaultMode($, m).catch((error: unknown) => $.ui.toast(`Could not save the mode: ${String(error)}`))}
+          >
+            <Text color={m === next ? 'claude' : 'subtle'}>{m === next ? '● ' : '○ '}</Text>
+            <Text color={MODE_COLORS[m] ?? 'text'} bold={m === next}>
+              {modeName(lng, m)}
+            </Text>
+            {m === running && <Text dimColor>{` · ${t('now')}`}</Text>}
+          </Button>
+        )),
       ),
-    ])
+    )
+    if (next === 'bypassPermissions') {
+      rows.push(
+        <Text key="mode-warning" color="warning">
+          {t('bypassWarning')}
+        </Text>,
+      )
+    }
   }
 
-  const row = (hotkey: string, name: string, value: string, target: Panel) => (
-    <Box key={`row-${target}`} flexDirection="column" marginTop={1}>
-      <Button
-        key={`open-${target}`}
-        plain
-        hotkey={hotkey}
-        autoFocus={target === 'zen' ? true : undefined}
-        label={`${name}  ›`}
-        onPress={() => goTo($, target)}
-      />
-      <Text dimColor>   {value}</Text>
+  if (tab === 'status') {
+    const isOn = await read($, statusOn)
+    rows.push(
+      <Text key="status-about" dimColor>
+        {t('statusAbout')}
+      </Text>,
+      heading(t('statusLine')),
+      chips('status-onoff', [
+        chip('status-on', t('on'), isOn, () =>
+          setStatusOn($, true).catch((error: unknown) => $.ui.toast(`Could not turn it on: ${String(error)}`)),
+        ),
+        chip('status-off', t('off'), !isOn, () =>
+          setStatusOn($, false).catch((error: unknown) => $.ui.toast(`Could not turn it off: ${String(error)}`)),
+        ),
+      ]),
+      <Text key="status-note" dimColor>
+        {t('statusNote')}
+      </Text>,
+    )
+  }
+
+  // Folder tabs: the chosen one framed and open into the page, the rest
+  // dim on the rule, the close at the end of the row.
+  const width = Math.max(10, columns - 2)
+  const cells = TABS.map(({ panel: p, name }) => {
+    const isOn = p === tab
+    const inner = ` ${isOn ? '◆ ' : ''}${t(name)} `
+    return { p, name, isOn, inner, cells: inner.length + (isOn ? 2 : 0) }
+  })
+  const used = cells.reduce((n, c) => n + c.cells, 0)
+  const tabStrip = (
+    <Box key="tabs" flexDirection="column">
+      <Text dimColor>{cells.map(c => (c.isOn ? `╭${'─'.repeat(c.inner.length)}╮` : ' '.repeat(c.cells))).join('')}</Text>
+      <Box>
+        {cells.map(c => (
+          <Box key={`tab-row-${c.p}`}>
+            {c.isOn && <Text dimColor>│</Text>}
+            <Button key={`tab-${c.p}`} plain label={t(c.name)} autoFocus={c.isOn ? true : undefined} onPress={() => goTo($, c.p)}>
+              {c.isOn ? (
+                <Text bold>
+                  {' '}
+                  <Text color="claude">◆</Text>
+                  {` ${t(c.name)} `}
+                </Text>
+              ) : (
+                <Text dimColor>{c.inner}</Text>
+              )}
+            </Button>
+            {c.isOn && <Text dimColor>│</Text>}
+          </Box>
+        ))}
+        <Box flexGrow={1} />
+        <Button key="tools-close" plain dimColor label={t('close')} onPress={() => toggleMenu($)} />
+      </Box>
+      <Text dimColor>
+        {cells.map(c => (c.isOn ? `╯${' '.repeat(c.inner.length)}╰` : '─'.repeat(c.cells))).join('')}
+        {'─'.repeat(Math.max(0, width - used))}
+      </Text>
     </Box>
   )
-  return page(MENU_NAME, [
-    row('1', 'Zen mode', isZenOn ? `on · ${zenThemeNow} band` : 'off', 'zen'),
-    row('2', 'Theme', theme, 'themes'),
-    row(
-      '3',
-      'Mode',
-      `${model === null ? '' : `${prettyModel(model)} · `}${running === null ? '—' : modeLabel(running)} · effort ${level ?? 'default'}`,
-      'mode',
-    ),
-    row('4', 'Status line', (await read($, statusOn)) ? 'on' : 'off', 'status'),
-  ])
+
+  const footer = (
+    <Box key="footer" flexDirection="column" marginTop={1} flexShrink={0}>
+      {rule}
+      <Box gap={2} flexWrap="wrap">
+        <Text dimColor>{t('language')}</Text>
+        {LANGS.map(l => chip(`lang-${l.lang}`, l.label, l.lang === lng, () => setLang($, l.lang)))}
+      </Box>
+      <Text dimColor>{t('keys')}</Text>
+    </Box>
+  )
+
+  // The themes page is exactly the body's height, its list scrolling inside;
+  // the other pages grow, the footer at the bottom while they fit.
+  const isThemes = tab === 'themes'
+  return (
+    <Box
+      flexDirection="column"
+      paddingX={1}
+      backgroundColor={background}
+      width={e.props.bodyColumns}
+      height={isThemes ? e.props.scroll.bodyRows : undefined}
+      minHeight={isThemes ? undefined : e.props.scroll.bodyRows}
+    >
+      {tabStrip}
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow={isThemes ? 'hidden' : undefined}>
+        {rows}
+      </Box>
+      {footer}
+    </Box>
+  )
 }
 
 // The row under the prompt: with the status line on, the status line with the
@@ -1149,14 +1294,15 @@ async function restore($: EngineInterface) {
 
 // Watching hooks end in .catch(... next(e)): when one fails, the event goes on.
 
+// The pane body's rows, as last drawn: the focus hook's measure of the list.
+let paneRows: number | undefined
+
 export const register: Register = on => {
 
   on('session.end', async ($, e, next) => {
-    // A preview left open as the session ends gives way to the kept theme,
-    // and this tab's Windows Terminal profile gets its own colors back.
-    // A /clear goes on in the same process and tab, so the profile keeps the theme.
+    // This tab's Windows Terminal profile, or the terminal, gets its own
+    // colors back. A /clear goes on in the same process and tab, so it keeps the theme.
     try {
-      await endPreview($)
       if (e.reason !== 'clear') {
         if (await isWindows($)) await paintWindowsTerminal($, null)
         else await paintOsc($, null)
@@ -1191,7 +1337,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'tools',
       description: 'Open the extra-mods menu: Zen mode, themes, mode and status line',
-      argumentHint: '[zen|themes|mode|debug]',
+      argumentHint: '[zen|themes|mode|status|debug]',
       immediate: true,
     })
     return started
@@ -1203,7 +1349,7 @@ export const register: Register = on => {
       const rows = await $.config.list()
       return { text: rows.map(r => `${r.key} (${r.kind}) = ${JSON.stringify(r.value)}`).join('\n') }
     }
-    const panel: Panel = arg === 'zen' || arg === 'themes' || arg === 'mode' ? arg : 'main'
+    const panel: Panel = arg === 'themes' || arg === 'mode' || arg === 'status' ? arg : 'zen'
     if ((await read($, menu)) !== null) await goTo($, panel)
     else await toggleMenu($, panel)
     return { text: 'extra-mods is open.' }
@@ -1211,60 +1357,39 @@ export const register: Register = on => {
 
   // The menu's pane.
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    paneRows = e.props.scroll.bodyRows
     const panel = await read($, menu)
     const drawn = panel === null ? null : await drawPane($, e, panel)
     return drawn ?? $.ui.resolve(e).Text({ children: '' })
   })
 
-  // However the pane closes (esc, its close mark, the corner button), the menu
-  // resets and an unkept theme preview is undone.
+  // However the pane closes (esc, its close mark, the corner button), the menu resets.
   on('ui.close', { id: PANE }, async ($, e, next) => {
     const closed = await next(e)
-    await endPreview($)
     await update($, menu, () => null)
     return closed
   }).catch(($, e, next) => next(e))
 
-  // Themes: the focus ring landing on a theme previews it on the terminal,
-  // once the arrows rest for a moment (each preview rewrites the terminal's settings).
-  let previewTimer: Timer | undefined
+  // Themes: the wheel and the scroll keys move the theme list's own window,
+  // never the pane, so the tabs and the language row stay put.
+  on('ui.scroll', { requestId: PANE }, async ($, e, next) => {
+    if ((await read($, menu)) !== 'themes' || e.by === 0) return next(e)
+    await scrollThemes($, (await read($, themeScroll)) + e.by, e.bodyRows)
+    return {}
+  }).catch(($, e, next) => next(e))
+
+  // Themes: the focus ring stepping onto a theme past either end of the
+  // window brings it into view.
   on('ui.focus', { requestId: PANE }, async ($, e, next) => {
     const moved = await next(e)
     const slug = e.element?.startsWith('theme:') ? e.element.slice('theme:'.length) : null
-    previewTimer?.cancel()
-    if (slug !== null && slug !== (await read($, preview))) {
-      previewTimer = $.clock.after(250, () => {
-        void previewTheme($, slug).catch((error: unknown) =>
-          sayTheme($, `Preview failed: ${error instanceof Error ? error.message : String(error)}`),
-        )
-      })
-    }
-    return moved
-  }).catch(($, e, next) => next(e))
-
-  // Themes: each wheel tick over the pane steps the preview to the next or
-  // previous theme in the list (the list scrolls along as usual).
-  let wheelSlug: string | null = null
-  on('ui.scroll', { requestId: PANE }, async ($, e, next) => {
-    const moved = await next(e)
-    if (e.pointer === undefined || e.by === 0 || (await read($, menu)) !== 'themes') return moved
-    const query = (await read($, themeQuery)).trim().toLowerCase()
-    const found = (await read($, themes)).filter(t => t.name.toLowerCase().includes(query))
-    if (found.length === 0) return moved
-    const kept = ((await $.store.get('theme')) as { slug: string } | undefined)?.slug ?? null
-    const current = wheelSlug ?? (await read($, preview)) ?? kept
-    const at = found.findIndex(t => t.slug === current)
-    const target = found[Math.max(0, Math.min(found.length - 1, at + Math.sign(e.by)))]
-    if (target === undefined) return moved
-    wheelSlug = target.slug
-    void $.ui.focus({ requestId: PANE, key: `theme:${target.slug}` }).catch(() => {})
-    previewTimer?.cancel()
-    previewTimer = $.clock.after(250, () => {
-      wheelSlug = null
-      void previewTheme($, target.slug).catch((error: unknown) =>
-        sayTheme($, `Preview failed: ${error instanceof Error ? error.message : String(error)}`),
-      )
-    })
+    if (slug === null || (await read($, menu)) !== 'themes') return moved
+    const at = (await foundThemes($)).findIndex(th => th.slug === slug)
+    const top = await read($, themeScroll)
+    const bodyRows = paneRows ?? PANE_SIZE.rows
+    const rows = listRows(bodyRows, (await read($, themeStatus)) !== '')
+    if (at >= 0 && at < top) await scrollThemes($, at, bodyRows)
+    else if (at >= top + rows) await scrollThemes($, at - rows + 1, bodyRows)
     return moved
   }).catch(($, e, next) => next(e))
 

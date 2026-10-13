@@ -219,11 +219,11 @@ describe('toolbox', () => {
       const corner = await $.ui.mount({ plugin: PLUGIN, surface, ...hint })
       const menu = await $.ui.mount({ plugin: PLUGIN, surface, ...pane })
       expect((await corner.find({ key: 'tools-toggle' }))?.text).toMatch(/extra-mods ▲/)
-      expect(await menu.find({ key: 'open-zen' })).toBeUndefined()
+      expect(await menu.find({ key: 'tab-zen' })).toBeUndefined()
 
       await corner.press({ key: 'tools-toggle' })
       expect((await corner.find({ key: 'tools-toggle' }))?.text).toMatch(/▼/)
-      for (const key of ['open-zen', 'open-themes', 'open-mode']) {
+      for (const key of ['tab-zen', 'tab-themes', 'tab-mode', 'tab-status', 'tools-close', 'lang-pt']) {
         expect(await menu.find({ key })).toBeDefined()
       }
       await corner.press({ key: 'tools-toggle' })
@@ -238,16 +238,14 @@ describe('toolbox', () => {
     const corner = await $.ui.mount({ plugin: PLUGIN, surface, ...hint })
     const menu = await $.ui.mount({ plugin: PLUGIN, surface, ...pane })
     await corner.press({ key: 'tools-toggle' })
-    await menu.press({ key: 'open-zen' })
     await menu.press({ key: 'zen-on' })
     await menu.press({ key: 'zen-theme-rainbow' })
     expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/● On/)
-    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● rainbow/)
+    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● .*rainbow/)
 
-    await menu.press({ key: 'tools-back' })
-    expect(await menu.find({ text: /on · rainbow band/ })).toBeDefined()
-
-    await menu.press({ key: 'open-zen' })
+    await menu.press({ key: 'tab-mode' })
+    await menu.press({ key: 'tab-zen' })
+    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● .*rainbow/)
     await menu.press({ key: 'zen-off' })
     expect((await menu.find({ key: 'zen-off' }))?.text).toMatch(/● Off/)
   })
@@ -257,14 +255,16 @@ describe('toolbox', () => {
     const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
     const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
     await corner.press({ key: 'tools-toggle' })
-    await menu.press({ key: 'open-mode' })
+    await menu.press({ key: 'tab-mode' })
     for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
       expect(await menu.find({ key: `effort-${level}` })).toBeDefined()
     }
-    expect(await menu.find({ key: 'default-mode-bypassPermissions' })).toBeDefined()
+    expect((await menu.find({ key: 'default-mode-bypassPermissions' }))?.text).toMatch(/bypass permissions/)
     await menu.press({ key: 'effort-high' })
-    await menu.press({ key: 'tools-back' })
-    expect(await menu.find({ text: /effort high/ })).toBeDefined()
+    // The chosen level is drawn as a filled chip, padded; max as ✦ and a rainbow.
+    expect((await menu.find({ key: 'effort-high' }))?.text).toBe(' high ')
+    await menu.press({ key: 'effort-max' })
+    expect((await menu.find({ key: 'effort-max' }))?.text).toBe('✦ max')
   })
 
   test('the mode page switches the model through /model', async ($, on) => {
@@ -280,15 +280,13 @@ describe('toolbox', () => {
     const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
     const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
     await corner.press({ key: 'tools-toggle' })
-    await menu.press({ key: 'open-mode' })
+    await menu.press({ key: 'tab-mode' })
     for (const alias of ['fable', 'opus', 'sonnet', 'haiku', 'default']) {
       expect(await menu.find({ key: `model-${alias}` })).toBeDefined()
     }
     await menu.press({ key: 'model-sonnet' })
     expect(ran).toEqual(['sonnet'])
     expect((await menu.find({ key: 'model-sonnet' }))?.text).toMatch(/● Sonnet/)
-    await menu.press({ key: 'tools-back' })
-    expect(await menu.find({ text: /Sonnet 5\.5 · / })).toBeDefined()
   })
 
   test('a running shell or monitor gets a second row under the status line', async ($, on) => {
@@ -312,7 +310,7 @@ describe('toolbox', () => {
     const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
     const opener = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
     await opener.press({ key: 'tools-toggle' })
-    await menu.press({ key: 'open-status' })
+    await menu.press({ key: 'tab-status' })
     await menu.press({ key: 'status-on' })
     await opener.press({ key: 'tools-toggle' })
     await opener.unmount()
@@ -343,13 +341,67 @@ describe('toolbox', () => {
     const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
     const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
     await corner.press({ key: 'tools-toggle' })
-    expect(await menu.find({ text: /on · rainbow band/ })).toBeUndefined()
+    expect((await menu.find({ key: 'zen-off' }))?.text).toMatch(/● Off/)
 
     await $.classic.SessionStart({ source: 'clear' })
     expect(closed).toEqual(['claude-tools'])
     await corner.press({ key: 'tools-toggle' })
-    expect(await menu.find({ text: /on · rainbow band/ })).toBeDefined()
-    expect(await menu.find({ text: /Sonnet 5\.5 · .* · effort medium/ })).toBeDefined()
+    expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/● On/)
+    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● .*rainbow/)
+    await menu.press({ key: 'tab-mode' })
+    expect((await menu.find({ key: 'effort-medium' }))?.text).toBe(' medium ')
+    expect((await menu.find({ key: 'model-sonnet' }))?.text).toMatch(/● Sonnet/)
+  })
+
+  test('the language row switches the panel to Portuguese and back', async ($, on) => {
+    engineDraws(on)
+    const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
+    const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    await corner.press({ key: 'tools-toggle' })
+    expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/On/)
+    await menu.press({ key: 'lang-pt' })
+    expect((await menu.find({ key: 'tab-themes' }))?.text).toMatch(/Tema/)
+    expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/Ligado/)
+    await menu.press({ key: 'tab-mode' })
+    expect((await menu.find({ key: 'default-mode-bypassPermissions' }))?.text).toMatch(/ignorar permissões/)
+    await menu.press({ key: 'lang-en' })
+    expect((await menu.find({ key: 'tab-themes' }))?.text).toMatch(/Theme/)
+  })
+
+  test('the themes page keeps the language row in view and paints the pane on a click', async ($, on) => {
+    mock.store(on, { statusOn: false })
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+    on('ui.open', () => ({ value: { isPlaced: true as const } }))
+    on('ui.close', () => ({ value: undefined }))
+    // Forty saved themes, each Dracula under another name and background.
+    const names = Array.from({ length: 40 }, (_, i) => `theme-${String(i).padStart(2, '0')}`)
+    const yaml = (slug: string) =>
+      DRACULA.replace('Dracula Default', slug).replace('background: "#282a36"', `background: "#0000${slug.slice(-2)}"`)
+    on('env.get', (_$, { name }) => ({ value: name === 'HOME' ? '/home/me' : undefined }))
+    on('fs.exists', () => ({ value: true }))
+    on('fs.list', () => ({ value: names.map(n => ({ name: `${n}.yaml`, kind: 'file' as const, size: 1, mtimeMs: 0 })) }) as never)
+    on('fs.read', (_$, { path }) => ({
+      value: path.endsWith('.yaml') ? yaml(path.split('/').pop()!.replace('.yaml', '')) : '{"theme":"custom:extra-mods"}',
+    }))
+    on('fs.write', () => ({ value: undefined }))
+    on('config.list', () => ({ value: [{ key: 'theme', kind: 'enum', value: 'custom:extra-mods', options: ['dark', 'custom:extra-mods'] }] }) as never)
+    on('process.run', () => ({ value: { exitCode: 1, stdout: '', stderr: '' } }) as never)
+    on('classic.SessionStart', () => ({}))
+    // A /clear restores the kept settings, the saved themes among them.
+    await $.classic.SessionStart({ source: 'clear' })
+
+    const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
+    const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
+    await corner.press({ key: 'tools-toggle' })
+    await menu.press({ key: 'tab-themes' })
+    const shown = (await menu.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('theme:'))
+    expect(shown.length).toBeGreaterThan(0)
+    expect(shown.length).toBeLessThan(pane.props.scroll.bodyRows)
+    expect(await menu.find({ key: 'lang-pt' })).toBeDefined()
+
+    await menu.press({ key: 'theme:theme-03' })
+    expect((await menu.find({ key: 'theme:theme-03' }))?.text).toMatch(/● /)
+    expect(await menu.drawn()).toMatchObject({ props: { backgroundColor: '#000003' } })
   })
 
   test("Claude's zen_progress calls fill the band", async ($, on) => {
@@ -359,7 +411,6 @@ describe('toolbox', () => {
     const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
     const progress = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...band() })
     await corner.press({ key: 'tools-toggle' })
-    await menu.press({ key: 'open-zen' })
     await menu.press({ key: 'zen-on' })
 
     await $.tool.call({

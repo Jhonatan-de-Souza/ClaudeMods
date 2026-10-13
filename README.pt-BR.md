@@ -7,7 +7,7 @@ Mods para o [Claude Code](https://claude.com/claude-code). Um plugin, `extra-mod
 | Ferramenta | O que faz |
 |---|---|
 | **Modo Zen** | Esconde as chamadas de ferramentas e a saída delas, e mostra o plano do Claude como uma barra de progresso acima do prompt |
-| **Tema** | Colore o Claude Code com qualquer tema do [terminalcolors.com](https://terminalcolors.com), com prévia ao vivo |
+| **Tema** | Colore o Claude Code com qualquer tema do [terminalcolors.com](https://terminalcolors.com) |
 | **Modo** | Define o modelo, o nível de esforço (effort) e o modo de permissão com que as novas sessões começam |
 | **Linha de status** | Modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache, com o botão na mesma linha |
 
@@ -46,7 +46,7 @@ Você pode apontar o seu agente de programação para este repositório e pedir 
 
 ## Como usar
 
-Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral. No layout de tela cheia do Claude Code ela fica à direita; nos outros, abre acima do prompt. A barra lateral recebe o teclado: **↑↓** movem, **Enter** seleciona, **b** volta, **Esc** fecha. A cor de fundo acompanha a do seu terminal.
+Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral. No layout de tela cheia do Claude Code ela fica à direita; nos outros, abre acima do prompt. Ela tem quatro abas, Zen, Tema, Modo e Status, com uma linha de **Idioma** (English ou Português) fixa no rodapé de todas. A barra lateral recebe o teclado: **Tab** move, **Enter** seleciona, a roda do mouse rola a lista de temas, **Esc** fecha. A cor de fundo acompanha o seu tema.
 
 ### 1. Modo Zen
 
@@ -60,12 +60,12 @@ Clique em **◆ extra-mods ▲**, ou digite `/tools`, para abrir a barra lateral
 > **Testado só no Windows até agora** (Windows Terminal). No macOS e no Linux o tema colore a interface do Claude Code, mas o fundo do terminal ainda não muda; essa parte vem quando for testada num Mac.
 
 - Na primeira vez que você abre, ele baixa todos os temas do terminalcolors.com para `~/.claude/extra-mods/themes/`.
-- Percorrer a lista com as setas ou a roda do mouse mostra uma **prévia** de cada tema no Claude Code. **Enter** escolhe um. Sair sem escolher volta ao tema que você já tinha.
+- **Clique** em um tema (ou aperte **Enter** nele) para aplicar. Passar por cima da lista ou rolar nunca troca o tema. A lista rola dentro da barra lateral, então as abas e a linha de idioma ficam no lugar; o contador no canto superior direito mostra onde você está (`1–20/112`).
 - Cada tema vira um tema personalizado do Claude Code, `~/.claude/themes/extra-mods.json`, e fica salvo como `theme` em `~/.claude/settings.json`. O Claude Code recarrega ao vivo e lembra dele entre sessões.
 - Ele define todas as cores da interface do Claude Code: texto, a cor de destaque, bordas, sucesso/erro/aviso, os modos de permissão, diffs, seleção, spinners, subagentes e o fundo das suas mensagens.
-- Um tema do Claude Code não muda o fundo do terminal. **No Windows Terminal**, o mod também põe o tema, com fundo e tudo, no perfil em que o Claude Code está rodando, enquanto a sessão durar: prévias e escolhas repintam a aba ao vivo, e o perfil volta às cores dele quando a sessão termina (ou, depois de um travamento, quando a próxima terminar). O Windows Terminal colore perfis inteiros, então outras abas abertas no mesmo perfil também ficam com o tema enquanto o Claude Code roda. O `settings.json` do Windows Terminal ganha um backup antes, `settings.json.extra-mods.bak`.
+- Um tema do Claude Code não muda o fundo do terminal. **No Windows Terminal**, o mod também põe o tema, com fundo e tudo, no perfil em que o Claude Code está rodando, enquanto a sessão durar: cada escolha repinta a aba ao vivo, e o perfil volta às cores dele quando a sessão termina (ou, depois de um travamento, quando a próxima terminar). O Windows Terminal colore perfis inteiros, então outras abas abertas no mesmo perfil também ficam com o tema enquanto o Claude Code roda. O `settings.json` do Windows Terminal ganha um backup antes, `settings.json.extra-mods.bak`.
 - Na primeira vez, reinicie o Claude Code uma vez: ele lê a configuração de tema ao abrir, e só carrega `~/.claude/themes/` quando essa configuração já é um tema personalizado. Depois disso, escolher um tema muda o Claude Code ao vivo.
-- **Back to Claude Code's previous theme** volta ao tema que você usava antes, e devolve ao perfil do Windows Terminal as cores dele.
+- **↺ Padrão do Claude Code** volta ao tema que você usava antes, e devolve ao perfil do Windows Terminal as cores dele.
 
 ### 3. Modo
 

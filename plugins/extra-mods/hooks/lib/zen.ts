@@ -9,7 +9,8 @@ export const RAINBOW = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '
 const PRESETS: Record<Exclude<ZenTheme, 'custom'>, ZenColors> = {
   blue: { bar: '#3b82f6', text: '#bfdbfe', border: '#3b82f6' },
   dark: { bar: '#e5e7eb', text: '#d1d5db', border: '#6b7280' },
-  light: { bar: '#2563eb', text: '#1f2937', border: '#9ca3af' },
+  // Its text is the theme's own, readable on a dark terminal and a light one.
+  light: { bar: '#93c5fd', text: 'text', border: '#cbd5e1' },
   green: { bar: '#22c55e', text: '#bbf7d0', border: '#16a34a' },
   rainbow: { bar: '#ef4444', text: '#f9a8d4', border: '#ec4899' },
 }

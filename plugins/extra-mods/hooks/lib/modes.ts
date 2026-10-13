@@ -2,6 +2,15 @@ import type { Effort } from '../../types'
 
 export const EFFORTS: readonly Effort[] = ['low', 'medium', 'high', 'xhigh', 'max']
 
+// Effort as heat, cool blue up to red hot; max (null) is the whole rainbow.
+export const EFFORT_HEAT: Record<Effort, string | null> = {
+  low: '#38bdf8',
+  medium: '#a3e635',
+  high: '#fbbf24',
+  xhigh: '#f97316',
+  max: null,
+}
+
 export const MODES = ['default', 'plan', 'acceptEdits', 'auto', 'bypassPermissions'] as const
 
 export type Mode = (typeof MODES)[number]

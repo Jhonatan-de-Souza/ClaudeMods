@@ -15,9 +15,12 @@ export type ZenTask = {
   steps: ZenStep[]
 }
 
-export type ThemeEntry = { slug: string; name: string }
+// colors: the theme's eight normal ANSI colors, drawn as its swatch.
+export type ThemeEntry = { slug: string; name: string; colors: string[] }
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+export type Lang = 'en' | 'pt'
 
 export type RateLimit = { label: string; percent: number; resetsAt: number | null }
 
@@ -45,11 +48,11 @@ declare module 'claude-code' {
       themes: ThemeEntry[]
       themeName: string | null
       themeQuery: string
+      themeScroll: number
       themeStatus: string
       effort: Effort | null
       mode: string | null
       defaultMode: string | null
-      preview: string | null
       isDownloading: boolean
       statusOn: boolean
       status: StatusSnapshot | null
@@ -59,6 +62,7 @@ declare module 'claude-code' {
       sessionModel: string | null
       paneBg: string | null
       defaultModeChosen: boolean
+      lang: Lang
     }
   }
 }
