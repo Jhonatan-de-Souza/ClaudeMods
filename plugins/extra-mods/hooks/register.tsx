@@ -21,6 +21,7 @@ import {
 import {
   findProfile,
   matchAll,
+  oscFor,
   type Palette,
   parseJsonc,
   targetProfile,
@@ -346,6 +347,35 @@ async function paintWindowsTerminal($: EngineInterface, palette: Palette | null)
   await refreshPaneBg($)
 }
 
+// The terminal device Claude Code draws on (/dev/ttys002, /dev/pts/3): the
+// first process up the tree that has one. A command the engine runs has no
+// terminal of its own, so /dev/tty is not there for it.
+const FIND_TTY = `p=$$
+while [ "$p" -gt 1 ]; do
+  t=$(ps -o tty= -p "$p" | tr -d ' ')
+  case "$t" in ''|'?'|'??') ;; *) printf '/dev/%s' "$t"; exit 0 ;; esac
+  p=$(ps -o ppid= -p "$p" | tr -d ' ')
+done
+exit 1`
+
+let ttyPath: string | null | undefined
+
+async function findTty($: EngineInterface) {
+  if (ttyPath !== undefined) return ttyPath
+  const ran = await $.process.run(['sh', '-c', FIND_TTY])
+  ttyPath = ran.exitCode === 0 && ran.stdout.startsWith('/dev/') ? ran.stdout : null
+  return ttyPath
+}
+
+// macOS and Linux: the theme's colors, background included, sent to the
+// terminal as OSC sequences (Ghostty, iTerm2, kitty, WezTerm, Terminal.app);
+// null gives the terminal its own colors back.
+async function paintOsc($: EngineInterface, palette: Palette | null) {
+  const tty = await findTty($)
+  if (tty === null) return
+  await $.process.run(['sh', '-c', 'printf "%s" "$1" > "$2"', 'sh', oscFor(palette), tty])
+}
+
 // Paints Claude Code with a saved theme: written as the custom theme
 // ~/.claude/themes/extra-mods.json, which Claude Code reloads live, and
 // selected. On Windows this tab's Windows Terminal profile takes the theme
@@ -357,6 +387,7 @@ async function paintTerminal($: EngineInterface, slug: string | null) {
     await selectClaudeTheme($, before ?? 'dark')
     await $.store.delete('themeBefore')
     if (await isWindows($)) await paintWindowsTerminal($, null)
+    else await paintOsc($, null)
     return null
   }
   const palette = toPalette(await $.fs.read(`${await themesDir($)}/${slug}.yaml`))
@@ -365,6 +396,7 @@ async function paintTerminal($: EngineInterface, slug: string | null) {
   await $.fs.write(`${dir}/${CLAUDE_THEME}.json`, `${JSON.stringify(toClaudeTheme(palette), null, 2)}\n`)
   await selectClaudeTheme($, `custom:${CLAUDE_THEME}`)
   if (await isWindows($)) await paintWindowsTerminal($, palette)
+  else await paintOsc($, palette)
   return palette
 }
 
@@ -422,9 +454,12 @@ async function loadThemes($: EngineInterface) {
   if (saved === undefined) return
   if (!list.some(t => t.slug === saved.slug)) return
   await update($, themeName, () => saved.name)
-  // This tab's Windows Terminal profile takes the kept theme for the session.
+  // This tab's Windows Terminal profile, or elsewhere the terminal itself,
+  // takes the kept theme for the session.
   try {
-    if (await isWindows($)) await paintWindowsTerminal($, toPalette(await $.fs.read(`${await themesDir($)}/${saved.slug}.yaml`)))
+    const palette = toPalette(await $.fs.read(`${await themesDir($)}/${saved.slug}.yaml`))
+    if (await isWindows($)) await paintWindowsTerminal($, palette)
+    else await paintOsc($, palette)
   } catch {}
 }
 
@@ -1122,7 +1157,10 @@ export const register: Register = on => {
     // A /clear goes on in the same process and tab, so the profile keeps the theme.
     try {
       await endPreview($)
-      if (e.reason !== 'clear' && (await isWindows($))) await paintWindowsTerminal($, null)
+      if (e.reason !== 'clear') {
+        if (await isWindows($)) await paintWindowsTerminal($, null)
+        else await paintOsc($, null)
+      }
     } catch {}
     return next(e)
   }).catch(($, e, next) => next(e))
