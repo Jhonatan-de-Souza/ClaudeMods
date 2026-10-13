@@ -1169,7 +1169,12 @@ export const register: Register = on => {
   // session.start, so the kept settings (Zen, effort, the model's mark) come back here.
   on('classic.SessionStart', async ($, e, next) => {
     const ran = await next(e)
-    if (e.source === 'clear') await restore($)
+    if (e.source === 'clear') {
+      // The menu's pane outlives the session it was opened in: close it.
+      await $.ui.close({ id: PANE }).catch(() => {})
+      await update($, menu, () => null)
+      await restore($)
+    }
     return ran
   }).catch(($, e, next) => next(e))
 
