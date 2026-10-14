@@ -1,17 +1,8 @@
 # Claude Mods
 
-**English** · [Português](README.pt-BR.md)
+<p align="center"><b>English</b> · <a href="README.pt-BR.md">Português</a></p>
 
-Mods for [Claude Code](https://claude.com/claude-code). One plugin, `extra-mods`, adds an **◆ extra-mods ▲** button in the bottom-right corner, under the prompt. It opens a sidebar with four tools:
-
-| Tool | What it does |
-|---|---|
-| **Zen mode** | Hides tool calls and their output, and shows Claude's plan as a progress band above the prompt |
-| **Theme** | Colors Claude Code with any theme from [terminalcolors.com](https://terminalcolors.com) |
-| **Mode** | Sets the model, the effort level, and the permission mode new sessions start in |
-| **Status line** | Model, folder, branch, context, 5h/7d limits and cache state, with the button on the same row |
-
-The sidebar's four tabs:
+A sidebar for [Claude Code](https://claude.com/claude-code): Zen mode, themes, model and effort, and a status line.
 
 <p>
   <img src="docs/screenshots/zen.png" alt="Zen tab" width="24%"> <img src="docs/screenshots/theme.png" alt="Theme tab" width="24%"> <img src="docs/screenshots/mode.png" alt="Mode tab" width="24%"> <img src="docs/screenshots/status.png" alt="Status tab" width="24%">
@@ -19,76 +10,51 @@ The sidebar's four tabs:
 
 ## Install
 
-You need Claude Code 2.1.292 or newer. Run these in a terminal:
+Needs Claude Code 2.1.292 or newer.
 
 ```
 claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods
 claude plugin install extra-mods@jdsjh-mods --scope user
 ```
 
-Then start a new Claude Code session, or run `/reload-plugins` in an open one. The button shows up at the bottom right of every session.
+Run `/reload-plugins` (or start a new session), then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
 
-To update to the latest version later:
+To update: `claude plugin marketplace update jdsjh-mods && claude plugin update extra-mods@jdsjh-mods`
 
-```
-claude plugin marketplace update jdsjh-mods
-claude plugin update extra-mods@jdsjh-mods
-```
+## What's inside
 
-### Install with an AI agent
+- **Zen** hides tool calls and shows Claude's plan as a progress band above the prompt.
+- **Theme** applies any of 100+ themes from [terminalcolors.com](https://terminalcolors.com) with one click.
+- **Mode** switches the model and effort, and picks the mode new sessions start in.
+- **Status** shows model, folder, branch, context, 5h/7d limits and cache state on one row.
 
-You can point your coding agent at this repository and ask it to install the mod. The steps below are written for the agent.
+The sidebar speaks English and Português. Keys: **Tab** moves, **Enter** selects, **Esc** closes.
 
-> **Agent instructions.** Follow these steps in order. Ask the user before step 4, because it changes their settings.
->
-> 1. Check Claude Code is installed and recent enough: run `claude --version`. It must print 2.1.292 or higher. If it doesn't, stop and tell the user to update Claude Code.
-> 2. Add this repository as a plugin marketplace: run `claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods`. It should print `Successfully added marketplace: jdsjh-mods`. If the marketplace already exists, continue.
-> 3. Install the plugin for all sessions: run `claude plugin install extra-mods@jdsjh-mods --scope user`. It should print `Successfully installed plugin: extra-mods@jdsjh-mods`.
-> 4. *Optional, ask first, and only if the user does not want the mod's built-in status line:* install the standalone status line script. Copy `statusline/statusline.py` from this repository to `~/.claude/statusline.py`. Then in `~/.claude/settings.json` set `"statusLine": { "type": "command", "command": "python ~/.claude/statusline.py", "refreshInterval": 2 }` (use `python3` on macOS and Linux). It needs Python 3.
-> 5. Verify: run `claude plugin list`. `extra-mods` must be listed and enabled.
-> 6. Tell the user to run `/reload-plugins` or start a new session, then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
->
-> On Windows, write paths with forward slashes (`C:/Users/...`) when a command runs in a POSIX shell such as Git Bash.
+<details>
+<summary><b>Good to know</b></summary>
 
-## Using it
+- **Zen:** Claude gets a `zen_progress` tool to post its plan and update each step. `[–]` shrinks the band to one line. Band colors: blue, dark, light, green, rainbow or custom.
+- **Theme:** themes download once to `~/.claude/extra-mods/themes/`. The pick is written as `~/.claude/themes/extra-mods.json` and set in `~/.claude/settings.json`. Restart Claude Code once the first time; after that themes change live. The terminal background follows too, on Windows Terminal (for the session, then restored) and on terminals that take OSC colors (Ghostty, iTerm2, kitty, WezTerm, Terminal.app).
+- **Mode:** the model switch runs Claude Code's own `/model`. The effort level applies to every request and is remembered. A running session's permission mode changes with **shift+tab**; the pick here is saved as `permissions.defaultMode`.
+- **Status:** on by default. It takes your own `statusLine` out of `settings.json` and puts it back when you turn it off. Background shells and monitors show on a second row; click it for `/tasks`.
+- Every settings file is backed up first, as `*.extra-mods.bak`.
 
-Click **◆ extra-mods ▲**, or type `/tools`, to open the sidebar. In Claude Code's fullscreen layout it docks on the right; otherwise it opens above the prompt. It has four tabs, Zen, Theme, Mode and Status, with a **Language** row (English or Português) fixed at the bottom of every tab. The sidebar takes the keyboard: **Tab** moves, **Enter** selects, the mouse wheel scrolls the theme list, **Esc** closes. Its background follows your theme.
+</details>
 
-### 1. Zen mode
+<details>
+<summary><b>Install with an AI agent</b></summary>
 
-- Hides every tool call and its output. You see only what Claude writes.
-- Gives Claude a `zen_progress` tool and asks it, with every prompt you send, to post its plan first and update it as each step starts and finishes.
-- Shows a progress band above the prompt: the task, the current step, a progress bar, the percentage and the elapsed time. `[–]` shrinks it to one line.
-- Band colors: `blue`, `dark`, `light`, `green`, `rainbow`, or `custom` with your own hex colors.
+Point your coding agent at this repository and ask it to install the mod. Steps for the agent (ask the user before step 4):
 
-### 2. Theme
+1. Run `claude --version`; it must be 2.1.292 or higher.
+2. Run `claude plugin marketplace add Jhonatan-de-Souza/ClaudeMods`.
+3. Run `claude plugin install extra-mods@jdsjh-mods --scope user`.
+4. *Optional, only if the user doesn't want the mod's status line:* copy `statusline/statusline.py` to `~/.claude/statusline.py` and set `"statusLine": { "type": "command", "command": "python ~/.claude/statusline.py", "refreshInterval": 2 }` in `~/.claude/settings.json` (`python3` on macOS and Linux).
+5. Check `claude plugin list` shows `extra-mods` enabled, then tell the user to run `/reload-plugins`.
 
-> **Tested on Windows only so far** (Windows Terminal). On macOS and Linux the theme colors Claude Code's interface, but the terminal's background isn't changed yet; that part will come once it's tested on a Mac.
+On Windows, use forward slashes in paths when running in Git Bash.
 
-- The first time you open it, it downloads every theme from terminalcolors.com to `~/.claude/extra-mods/themes/`.
-- **Click** a theme (or press **Enter** on it) to apply it. Moving over the list or scrolling it never changes the theme. The list scrolls inside the sidebar, so the tabs and the language row stay put; the counter at the top right shows where you are (`1–20/112`).
-- Each theme becomes a Claude Code custom theme, `~/.claude/themes/extra-mods.json`, and is set as `theme` in `~/.claude/settings.json`. Claude Code reloads it live and remembers it across sessions.
-- It sets every color Claude Code's interface has: text, the accent, borders, success/error/warning, the permission modes, diffs, selection, spinners, subagents and your message background.
-- A Claude Code theme can't change the terminal's background. **On Windows Terminal**, the mod also puts the theme, background included, on the profile Claude Code runs in, for as long as the session lasts: a pick repaints the tab live, and the profile gets its own colors back when the session ends (or, after a crash, when the next one ends). Windows Terminal colors whole profiles, so other open tabs on the same profile take the theme too while Claude Code runs. Windows Terminal's `settings.json` is backed up first, as `settings.json.extra-mods.bak`.
-- The first time, restart Claude Code once: it reads the theme setting at startup, and only loads `~/.claude/themes/` when that setting is already a custom theme. After that, picking a theme changes Claude Code live.
-- **↺ Claude Code default** selects the theme you had before, and gives the Windows Terminal profile its own colors back.
-
-### 3. Mode
-
-- **Model:** Fable, Opus, Sonnet or Haiku, or **↺ Claude Code's default**. The model the session runs on is marked. Picking one runs Claude Code's own `/model`, so the switch is real: `/model` and the status line show it too.
-- **Effort:** `low` / `medium` / `high` / `xhigh` / `max`. The level the session is using is marked. A level you pick applies to every request from then on, and is remembered.
-- **Running in:** the current permission mode. A mod can't switch the mode of a running session, so use **shift+tab** for that.
-- **New sessions start in:** ask, plan, accept edits, auto or bypass permissions, each in Claude Code's own color. The current mode is marked **· now**. Your pick is saved as `permissions.defaultMode` in `~/.claude/settings.json` (backed up first).
-
-### 4. Status line
-
-- One row, next to Claude Code's own mode label: the model, the folder and the git branch, then context, the 5h and 7d limits with their reset times, and the cache state, with **◆ extra-mods** at the end.
-- **● cache ok** (green) while Claude's last response is under an hour old; **● cache over** (red) after that.
-- When the terminal narrows, the bars go first, then the reset times, then the model and folder.
-- While Claude has a background shell or monitor running, a second row under it shows them (`1 shell, 1 monitor`). Click it to open `/tasks`.
-- It's **on** by default, so **◆ extra-mods** sits on the status row. **On** takes your own `statusLine` command out of `~/.claude/settings.json` so the two don't stack (backed up first). **Off** puts it back.
-
-`statusline/statusline.py` is the same status line as a standalone script, for Claude Code setups without the mod (see step 4 of the agent instructions).
+</details>
 
 ## Develop
 
