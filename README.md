@@ -4,9 +4,31 @@
 
 A sidebar for [Claude Code](https://claude.com/claude-code): Zen mode, themes, model and effort, and a status line.
 
-<p>
-  <img src="docs/screenshots/zen.png" alt="Zen tab" width="24%"> <img src="docs/screenshots/theme.png" alt="Theme tab" width="24%"> <img src="docs/screenshots/mode.png" alt="Mode tab" width="24%"> <img src="docs/screenshots/status.png" alt="Status tab" width="24%">
-</p>
+### Zen
+
+Hides tool calls and shows Claude's plan as a progress band above the prompt.
+
+<img src="docs/screenshots/zen.png" alt="Zen tab" width="360">
+
+### Theme
+
+Applies any of 100+ themes from [terminalcolors.com](https://terminalcolors.com) with one click.
+
+<img src="docs/screenshots/theme.png" alt="Theme tab" width="360">
+
+### Mode
+
+Switches the model and effort, and picks the mode new sessions start in.
+
+<img src="docs/screenshots/mode.png" alt="Mode tab" width="360">
+
+### Status
+
+Shows model, folder, branch, context, 5h/7d limits and cache state on one row.
+
+<img src="docs/screenshots/status.png" alt="Status tab" width="360">
+
+The sidebar speaks English and Português. Keys: **Tab** moves, **Enter** selects, **Esc** closes.
 
 ## Install
 
@@ -20,15 +42,6 @@ claude plugin install extra-mods@jdsjh-mods --scope user
 Run `/reload-plugins` (or start a new session), then click **◆ extra-mods ▲** at the bottom right, or type `/tools`.
 
 To update: `claude plugin marketplace update jdsjh-mods && claude plugin update extra-mods@jdsjh-mods`
-
-## What's inside
-
-- **Zen** hides tool calls and shows Claude's plan as a progress band above the prompt.
-- **Theme** applies any of 100+ themes from [terminalcolors.com](https://terminalcolors.com) with one click.
-- **Mode** switches the model and effort, and picks the mode new sessions start in.
-- **Status** shows model, folder, branch, context, 5h/7d limits and cache state on one row.
-
-The sidebar speaks English and Português. Keys: **Tab** moves, **Enter** selects, **Esc** closes.
 
 <details>
 <summary><b>Good to know</b></summary>

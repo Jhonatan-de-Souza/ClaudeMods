@@ -4,9 +4,31 @@
 
 Uma barra lateral para o [Claude Code](https://claude.com/claude-code): modo Zen, temas, modelo e esforço, e uma linha de status.
 
-<p>
-  <img src="docs/screenshots/zen.png" alt="Aba Zen" width="24%"> <img src="docs/screenshots/theme.png" alt="Aba Tema" width="24%"> <img src="docs/screenshots/mode.png" alt="Aba Modo" width="24%"> <img src="docs/screenshots/status.png" alt="Aba Status" width="24%">
-</p>
+### Zen
+
+Esconde as chamadas de ferramentas e mostra o plano do Claude numa faixa de progresso acima do prompt.
+
+<img src="docs/screenshots/zen.png" alt="Aba Zen" width="360">
+
+### Tema
+
+Aplica qualquer um dos mais de 100 temas do [terminalcolors.com](https://terminalcolors.com) com um clique.
+
+<img src="docs/screenshots/theme.png" alt="Aba Tema" width="360">
+
+### Modo
+
+Troca o modelo e o esforço, e escolhe o modo em que as novas sessões começam.
+
+<img src="docs/screenshots/mode.png" alt="Aba Modo" width="360">
+
+### Status
+
+Mostra modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache numa linha só.
+
+<img src="docs/screenshots/status.png" alt="Aba Status" width="360">
+
+A barra lateral fala English e Português. Teclas: **Tab** move, **Enter** escolhe, **Esc** fecha.
 
 ## Instalação
 
@@ -20,15 +42,6 @@ claude plugin install extra-mods@jdsjh-mods --scope user
 Rode `/reload-plugins` (ou abra uma nova sessão) e clique em **◆ extra-mods ▲** no canto inferior direito, ou digite `/tools`.
 
 Para atualizar: `claude plugin marketplace update jdsjh-mods && claude plugin update extra-mods@jdsjh-mods`
-
-## O que tem
-
-- **Zen** esconde as chamadas de ferramentas e mostra o plano do Claude numa faixa de progresso acima do prompt.
-- **Tema** aplica qualquer um dos mais de 100 temas do [terminalcolors.com](https://terminalcolors.com) com um clique.
-- **Modo** troca o modelo e o esforço, e escolhe o modo em que as novas sessões começam.
-- **Status** mostra modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache numa linha só.
-
-A barra lateral fala English e Português. Teclas: **Tab** move, **Enter** escolhe, **Esc** fecha.
 
 <details>
 <summary><b>Bom saber</b></summary>
