@@ -725,8 +725,8 @@ async function toggleMenu($: EngineInterface, panel: Panel = 'zen') {
 // so the tabs above it and the language row under it stay where they are.
 // Rows the themes page takes besides the list: the tab strip (3), the kept
 // theme, the search, the actions, a status line while there is one, the
-// language footer (4), and one spare in case a row wraps.
-const listRows = (bodyRows: number, hasStatus: boolean) => Math.max(3, bodyRows - (3 + 3 + (hasStatus ? 1 : 0) + 4 + 1))
+// language footer (6, its chips framed), and one spare in case a row wraps.
+const listRows = (bodyRows: number, hasStatus: boolean) => Math.max(3, bodyRows - (3 + 3 + (hasStatus ? 1 : 0) + 6 + 1))
 
 async function foundThemes($: EngineInterface) {
   const query = (await read($, themeQuery)).trim().toLowerCase()
@@ -775,32 +775,43 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   const columns = e.props.bodyColumns ?? PANE_SIZE.columns
   const rule = <Text dimColor>{'─'.repeat(Math.max(10, columns - 2))}</Text>
 
-  // A chip: ● and bold for the chosen one, ○ and dim for the rest.
-  const chip = (key: string, label: string, isOn: boolean, onPress: () => unknown, color?: string) => (
-    <Button key={key} plain label={label} onPress={onPress}>
-      <Text color={isOn ? 'claude' : 'subtle'}>{isOn ? '● ' : '○ '}</Text>
-      <Text bold={isOn} color={color} dimColor={!isOn && color === undefined}>
-        {label}
-      </Text>
-    </Button>
+  // A chip: a framed button, the chosen one framed and written in the accent
+  // color (or `frame`), the rest in a dim frame. The frame's key is the
+  // Button's with `-box`.
+  const framed = (key: string, isOn: boolean, button: RenderChildren, frame?: string) => (
+    <Box key={`${key}-box`} borderStyle="round" borderColor={isOn ? (frame ?? 'claude') : undefined} borderDimColor={!isOn} paddingX={1}>
+      {button}
+    </Box>
   )
+  const chip = (key: string, label: string, isOn: boolean, onPress: () => unknown, color?: string) =>
+    framed(
+      key,
+      isOn,
+      <Button key={key} plain label={label} onPress={onPress}>
+        <Text bold={isOn} color={isOn ? 'claude' : color}>
+          {label}
+        </Text>
+      </Button>,
+    )
   const chips = (key: string, items: RenderChildren[]) => (
-    <Box key={key} flexWrap="wrap" columnGap={2}>
+    <Box key={key} flexWrap="wrap" columnGap={1}>
       {items}
     </Box>
+  )
+  const check = (isOn: boolean) => isOn && <Text color="claude">{' ✓'}</Text>
+  // Swatches: one square a color, a space between.
+  const swatches = (colors: readonly string[]) => (
+    <Text>
+      {colors.map(c => (
+        <Text color={c}>{'■ '}</Text>
+      ))}
+    </Text>
   )
   const heading = (text: string, extra?: RenderChildren) => (
     <Box key={`h-${text}`} marginTop={1} gap={1}>
       <Text dimColor>{text}</Text>
       {extra}
     </Box>
-  )
-  const strip = (colors: readonly string[], cells: number) => (
-    <Text>
-      {Array.from({ length: cells }, (_, i) => (
-        <Text color={colors[Math.floor((i * colors.length) / cells)]}>█</Text>
-      ))}
-    </Text>
   )
 
   const rows: RenderChildren[] = []
@@ -810,9 +821,6 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
     const zenThemeNow = await read($, zenTheme)
     const custom = await read($, zenCustom)
     rows.push(
-      <Text key="zen-about" dimColor>
-        {t('zenAbout')}
-      </Text>,
       heading(t('zenMode')),
       chips('zen-onoff', [
         chip('zen-on', t('on'), isZenOn, () => setZenOn($, true)),
@@ -821,14 +829,12 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
       heading(t('bandColor')),
       ...ZEN_THEMES.map(theme => {
         const isOn = theme === zenThemeNow
-        const colors = theme === 'rainbow' ? RAINBOW : [colorsFor(theme, custom).bar]
+        const colors = theme === 'rainbow' ? RAINBOW.slice(0, 6) : Array(6).fill(colorsFor(theme, custom).bar)
         return (
           <Button key={`zen-theme-${theme}`} plain label={theme} onPress={() => setZenTheme($, theme)}>
-            <Text color={isOn ? 'claude' : 'subtle'}>{isOn ? '● ' : '○ '}</Text>
-            {strip(colors, 8)}
-            <Text bold={isOn} dimColor={!isOn}>
-              {` ${theme}`}
-            </Text>
+            {swatches(colors)}
+            <Text bold={isOn}>{theme}</Text>
+            {check(isOn)}
           </Button>
         )
       }),
@@ -911,13 +917,9 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
           const isKept = th.slug === kept
           return (
             <Button key={`theme:${th.slug}`} plain label={th.name} onPress={themeAction($, () => applyTheme($, th.slug))}>
-              <Text color={isKept ? 'claude' : 'subtle'}>{isKept ? '● ' : '○ '}</Text>
-              {th.colors.map(c => (
-                <Text color={c}>■</Text>
-              ))}
-              <Text bold={isKept} dimColor={!isKept}>
-                {` ${th.name}`}
-              </Text>
+              {swatches(th.colors)}
+              <Text bold={isKept}>{th.name}</Text>
+              {check(isKept)}
             </Button>
           )
         }),
@@ -957,33 +959,27 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
           const heat = EFFORT_HEAT[l]
           const isOn = l === level
           const press = () => setEffort($, l)
-          if (isOn && heat === null) {
-            return (
-              <Button key={`effort-${l}`} plain label={l} onPress={press}>
-                <Text bold>{'✦ '}</Text>
+          // Cool blue up to red hot; max is the whole rainbow.
+          const label =
+            heat === null ? (
+              <Text bold={isOn}>
+                {isOn && '✦ '}
                 {rainbow(l).map(({ ch, color }) => (
-                  <Text bold color={color}>
-                    {ch}
-                  </Text>
+                  <Text color={color}>{ch}</Text>
                 ))}
-              </Button>
+              </Text>
+            ) : isOn ? (
+              <Text bold color="#111111" backgroundColor={heat}>{` ${l} `}</Text>
+            ) : (
+              <Text color={heat}>{l}</Text>
             )
-          }
-          if (isOn) {
-            return (
-              <Button key={`effort-${l}`} plain label={l} onPress={press}>
-                <Text bold color="#111111" backgroundColor={heat ?? undefined}>{` ${l} `}</Text>
-              </Button>
-            )
-          }
-          return (
+          return framed(
+            `effort-${l}`,
+            isOn,
             <Button key={`effort-${l}`} plain label={l} onPress={press}>
-              {heat === null ? (
-                rainbow(l).map(({ ch, color }) => <Text color={color}>{ch}</Text>)
-              ) : (
-                <Text color={heat}>{l}</Text>
-              )}
-            </Button>
+              {label}
+            </Button>,
+            heat ?? RAINBOW[7],
           )
         }),
       ),
@@ -995,20 +991,23 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
       heading(t('newSessions')),
       chips(
         'default-modes',
-        MODES.map(m => (
-          <Button
-            key={`default-mode-${m}`}
-            plain
-            label={modeName(lng, m)}
-            onPress={() => setDefaultMode($, m).catch((error: unknown) => $.ui.toast(`Could not save the mode: ${String(error)}`))}
-          >
-            <Text color={m === next ? 'claude' : 'subtle'}>{m === next ? '● ' : '○ '}</Text>
-            <Text color={MODE_COLORS[m] ?? 'text'} bold={m === next}>
-              {modeName(lng, m)}
-            </Text>
-            {m === running && <Text dimColor>{` · ${t('now')}`}</Text>}
-          </Button>
-        )),
+        MODES.map(m =>
+          framed(
+            `default-mode-${m}`,
+            m === next,
+            <Button
+              key={`default-mode-${m}`}
+              plain
+              label={modeName(lng, m)}
+              onPress={() => setDefaultMode($, m).catch((error: unknown) => $.ui.toast(`Could not save the mode: ${String(error)}`))}
+            >
+              <Text color={MODE_COLORS[m] ?? 'text'} bold={m === next}>
+                {modeName(lng, m)}
+              </Text>
+              {m === running && <Text color={MODE_COLORS[m] ?? 'text'}>{` · ${t('now')}`}</Text>}
+            </Button>,
+          ),
+        ),
       ),
     )
     if (next === 'bypassPermissions') {
@@ -1023,9 +1022,6 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   if (tab === 'status') {
     const isOn = await read($, statusOn)
     rows.push(
-      <Text key="status-about" dimColor>
-        {t('statusAbout')}
-      </Text>,
       heading(t('statusLine')),
       chips('status-onoff', [
         chip('status-on', t('on'), isOn, () =>
@@ -1059,10 +1055,9 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
             {c.isOn && <Text dimColor>│</Text>}
             <Button key={`tab-${c.p}`} plain label={t(c.name)} autoFocus={c.isOn ? true : undefined} onPress={() => goTo($, c.p)}>
               {c.isOn ? (
-                <Text bold>
-                  {' '}
-                  <Text color="claude">◆</Text>
-                  {` ${t(c.name)} `}
+                <Text bold color="claude">
+                  {' ◆ '}
+                  <Text underline>{t(c.name)}</Text>{' '}
                 </Text>
               ) : (
                 <Text dimColor>{c.inner}</Text>
@@ -1084,7 +1079,7 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
   const footer = (
     <Box key="footer" flexDirection="column" marginTop={1} flexShrink={0}>
       {rule}
-      <Box gap={2} flexWrap="wrap">
+      <Box columnGap={1} flexWrap="wrap" alignItems="center">
         <Text dimColor>{t('language')}</Text>
         {LANGS.map(l => chip(`lang-${l.lang}`, l.label, l.lang === lng, () => setLang($, l.lang)))}
       </Box>

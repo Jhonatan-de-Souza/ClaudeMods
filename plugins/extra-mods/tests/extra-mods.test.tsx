@@ -212,6 +212,10 @@ const engineDraws = (on: On) => {
   on('ui.close', () => ({ value: undefined }))
 }
 
+// A chip is chosen when its frame is drawn in the accent color.
+const isChosen = async (menu: { find: (q: { key: string }) => Promise<{ props: Record<string, unknown> } | undefined> }, key: string) =>
+  (await menu.find({ key: `${key}-box` }))?.props.borderColor === 'claude'
+
 describe('toolbox', () => {
   test('the corner button opens the menu in its pane', async ($, on) => {
     engineDraws(on)
@@ -240,14 +244,14 @@ describe('toolbox', () => {
     await corner.press({ key: 'tools-toggle' })
     await menu.press({ key: 'zen-on' })
     await menu.press({ key: 'zen-theme-rainbow' })
-    expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/● On/)
-    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● .*rainbow/)
+    expect(await isChosen(menu, 'zen-on')).toBe(true)
+    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/rainbow ✓/)
 
     await menu.press({ key: 'tab-mode' })
     await menu.press({ key: 'tab-zen' })
-    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● .*rainbow/)
+    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/rainbow ✓/)
     await menu.press({ key: 'zen-off' })
-    expect((await menu.find({ key: 'zen-off' }))?.text).toMatch(/● Off/)
+    expect(await isChosen(menu, 'zen-off')).toBe(true)
   })
 
   test('the mode page lists effort levels and new-session modes', async ($, on) => {
@@ -286,7 +290,7 @@ describe('toolbox', () => {
     }
     await menu.press({ key: 'model-sonnet' })
     expect(ran).toEqual(['sonnet'])
-    expect((await menu.find({ key: 'model-sonnet' }))?.text).toMatch(/● Sonnet/)
+    expect(await isChosen(menu, 'model-sonnet')).toBe(true)
   })
 
   test('a running shell or monitor gets a second row under the status line', async ($, on) => {
@@ -341,16 +345,16 @@ describe('toolbox', () => {
     const menu = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...pane })
     const corner = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', ...hint })
     await corner.press({ key: 'tools-toggle' })
-    expect((await menu.find({ key: 'zen-off' }))?.text).toMatch(/● Off/)
+    expect(await isChosen(menu, 'zen-off')).toBe(true)
 
     await $.classic.SessionStart({ source: 'clear' })
     expect(closed).toEqual(['claude-tools'])
     await corner.press({ key: 'tools-toggle' })
-    expect((await menu.find({ key: 'zen-on' }))?.text).toMatch(/● On/)
-    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/● .*rainbow/)
+    expect(await isChosen(menu, 'zen-on')).toBe(true)
+    expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/rainbow ✓/)
     await menu.press({ key: 'tab-mode' })
     expect((await menu.find({ key: 'effort-medium' }))?.text).toBe(' medium ')
-    expect((await menu.find({ key: 'model-sonnet' }))?.text).toMatch(/● Sonnet/)
+    expect(await isChosen(menu, 'model-sonnet')).toBe(true)
   })
 
   test('the language row switches the panel to Portuguese and back', async ($, on) => {
@@ -400,7 +404,7 @@ describe('toolbox', () => {
     expect(await menu.find({ key: 'lang-pt' })).toBeDefined()
 
     await menu.press({ key: 'theme:theme-03' })
-    expect((await menu.find({ key: 'theme:theme-03' }))?.text).toMatch(/● /)
+    expect((await menu.find({ key: 'theme:theme-03' }))?.text).toMatch(/theme-03 ✓/)
     expect(await menu.drawn()).toMatchObject({ props: { backgroundColor: '#000003' } })
   })
 
