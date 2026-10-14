@@ -11,6 +11,12 @@ Mods for [Claude Code](https://claude.com/claude-code). One plugin, `extra-mods`
 | **Mode** | Sets the model, the effort level, and the permission mode new sessions start in |
 | **Status line** | Model, folder, branch, context, 5h/7d limits and cache state, with the button on the same row |
 
+The sidebar's four tabs:
+
+<p>
+  <img src="docs/screenshots/zen.png" alt="Zen tab" width="24%"> <img src="docs/screenshots/theme.png" alt="Theme tab" width="24%"> <img src="docs/screenshots/mode.png" alt="Mode tab" width="24%"> <img src="docs/screenshots/status.png" alt="Status tab" width="24%">
+</p>
+
 ## Install
 
 You need Claude Code 2.1.292 or newer. Run these in a terminal:

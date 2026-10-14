@@ -11,6 +11,12 @@ Mods para o [Claude Code](https://claude.com/claude-code). Um plugin, `extra-mod
 | **Modo** | Define o modelo, o nível de esforço (effort) e o modo de permissão com que as novas sessões começam |
 | **Linha de status** | Modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache, com o botão na mesma linha |
 
+As quatro abas da barra lateral:
+
+<p>
+  <img src="docs/screenshots/zen.png" alt="Aba Zen" width="24%"> <img src="docs/screenshots/theme.png" alt="Aba Tema" width="24%"> <img src="docs/screenshots/mode.png" alt="Aba Modo" width="24%"> <img src="docs/screenshots/status.png" alt="Aba Status" width="24%">
+</p>
+
 ## Instalação
 
 Você precisa do Claude Code 2.1.292 ou mais novo. Rode no terminal:
