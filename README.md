@@ -6,7 +6,9 @@ A sidebar for [Claude Code](https://claude.com/claude-code): Zen mode, themes, m
 
 ### Zen
 
-Hides tool calls and shows Claude's plan as a progress band above the prompt.
+Hides all tool calls and giant code blocks and shows just a progress bar and small progress reports.
+
+<img src="docs/screenshots/zen-demo.gif" alt="Zen mode with the green band: Claude posts short updates while the bar fills step by step" width="720">
 
 <img src="docs/screenshots/zen.png" alt="Zen tab" width="360">
 
@@ -14,17 +16,21 @@ Hides tool calls and shows Claude's plan as a progress band above the prompt.
 
 Applies any of 100+ themes from [terminalcolors.com](https://terminalcolors.com) with one click.
 
-<img src="docs/screenshots/theme.png" alt="Theme tab" width="360">
+<img src="docs/screenshots/theme-demo.gif" alt="Clicking through themes in the Theme tab: the whole session recolors live" width="720">
 
 ### Mode
 
 Switches the model and effort, and picks the mode new sessions start in.
+
+<img src="docs/screenshots/mode-demo.png" alt="Model switched to Sonnet and effort to high from the Mode tab, mid-session" width="720">
 
 <img src="docs/screenshots/mode.png" alt="Mode tab" width="360">
 
 ### Status
 
 Shows model, folder, branch, context, 5h/7d limits and cache state on one row.
+
+<img src="docs/screenshots/status-demo.png" alt="The status line under the prompt, with a background shell running" width="720">
 
 <img src="docs/screenshots/status.png" alt="Status tab" width="360">
 

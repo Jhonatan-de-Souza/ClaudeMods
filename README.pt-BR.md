@@ -6,7 +6,9 @@ Uma barra lateral para o [Claude Code](https://claude.com/claude-code): modo Zen
 
 ### Zen
 
-Esconde as chamadas de ferramentas e mostra o plano do Claude numa faixa de progresso acima do prompt.
+Esconde todas as chamadas de ferramentas e os blocos gigantes de código, e mostra só uma barra de progresso e pequenos relatos do andamento.
+
+<img src="docs/screenshots/zen-demo.gif" alt="Modo Zen com a faixa verde: o Claude manda atualizações curtas enquanto a barra enche passo a passo" width="720">
 
 <img src="docs/screenshots/zen.png" alt="Aba Zen" width="360">
 
@@ -14,17 +16,21 @@ Esconde as chamadas de ferramentas e mostra o plano do Claude numa faixa de prog
 
 Aplica qualquer um dos mais de 100 temas do [terminalcolors.com](https://terminalcolors.com) com um clique.
 
-<img src="docs/screenshots/theme.png" alt="Aba Tema" width="360">
+<img src="docs/screenshots/theme-demo.gif" alt="Trocando de tema na aba Tema: a sessão inteira muda de cor na hora" width="720">
 
 ### Modo
 
 Troca o modelo e o esforço, e escolhe o modo em que as novas sessões começam.
+
+<img src="docs/screenshots/mode-demo.png" alt="Modelo trocado para Sonnet e esforço para high pela aba Modo, no meio da sessão" width="720">
 
 <img src="docs/screenshots/mode.png" alt="Aba Modo" width="360">
 
 ### Status
 
 Mostra modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache numa linha só.
+
+<img src="docs/screenshots/status-demo.png" alt="A linha de status abaixo do prompt, com um shell rodando em segundo plano" width="720">
 
 <img src="docs/screenshots/status.png" alt="Aba Status" width="360">
 
