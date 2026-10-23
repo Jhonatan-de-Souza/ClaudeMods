@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren, RenderInput, Timer } from 'claude-code'
 
-import type { Effort, Lang, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenTask, ZenTheme } from '../types'
+import type { Effort, Lang, Panel, RateLimit, StatusSnapshot, ThemeEntry, ZenColors, ZenStep, ZenStyle, ZenTask, ZenTheme } from '../types'
 import { EFFORT_HEAT, EFFORTS, type Mode, MODELS, MODES, modeLabel, modelFamily } from './lib/modes'
 import { isLang, LANGS, modeName, phrase, type Phrase } from './lib/i18n'
 import {
@@ -29,6 +29,7 @@ import {
   toPalette,
   toClaudeTheme,
   withProfileTheme,
+  mix,
   WT_SCHEME,
   type WtSettings,
 } from './lib/palette'
@@ -38,6 +39,8 @@ import {
   colorsFor,
   elapsed,
   percentOf,
+  prismCells,
+  prismColor,
   RAINBOW,
   stepLabel,
   visibleSteps,
@@ -45,6 +48,7 @@ import {
   ZEN_TOOL_DESCRIPTION,
   ZEN_TOOL_NAME,
   ZEN_TOOL_SCHEMA,
+  ZEN_STYLES,
   ZEN_THEMES,
 } from './lib/zen'
 
@@ -57,6 +61,7 @@ const zenCustom = atom(
   { plugin: 'extra-mods', key: 'zenCustom' } as const,
   { bar: '#3b82f6', text: '#e2e8f0', border: '#3b82f6' } satisfies ZenColors,
 )
+const zenStyle = atom({ plugin: 'extra-mods', key: 'zenStyle' } as const, 'prism')
 const zenCollapsed = atom({ plugin: 'extra-mods', key: 'zenCollapsed' } as const, false)
 const task = atom({ plugin: 'extra-mods', key: 'task' } as const, null)
 const now = atom({ plugin: 'extra-mods', key: 'now' } as const, 0)
@@ -148,6 +153,13 @@ async function setZenOn($: EngineInterface, isOn: boolean) {
 async function setZenTheme($: EngineInterface, theme: ZenTheme) {
   await update($, zenTheme, () => theme)
   await $.store.set('zenTheme', theme)
+}
+
+async function setZenStyle($: EngineInterface, style: ZenStyle) {
+  await update($, zenStyle, () => style)
+  await $.store.set('zenStyle', style)
+  // A running band's clock speeds up or slows down to match.
+  if (ticker !== undefined) await startTicker($)
 }
 
 async function setZenColor($: EngineInterface, part: keyof ZenColors, value: string) {
@@ -528,12 +540,14 @@ async function loadSettings($: EngineInterface) {
     zenOn: (await $.store.get('zenOn')) as boolean | undefined,
     zenTheme: (await $.store.get('zenTheme')) as ZenTheme | undefined,
     zenCustom: (await $.store.get('zenCustom')) as ZenColors | undefined,
+    zenStyle: (await $.store.get('zenStyle')) as ZenStyle | undefined,
     effort: (await $.store.get('effort')) as Effort | undefined,
     lang: await $.store.get('lang'),
   }
   if (saved.zenOn !== undefined) await update($, zenOn, () => saved.zenOn!)
   if (saved.zenTheme !== undefined && ZEN_THEMES.includes(saved.zenTheme)) await update($, zenTheme, () => saved.zenTheme!)
   if (saved.zenCustom !== undefined) await update($, zenCustom, () => saved.zenCustom!)
+  if (saved.zenStyle !== undefined && ZEN_STYLES.includes(saved.zenStyle)) await update($, zenStyle, () => saved.zenStyle!)
   if (saved.effort !== undefined && EFFORTS.includes(saved.effort)) await update($, effort, () => saved.effort!)
   if (isLang(saved.lang)) await update($, lang, () => saved.lang as Lang)
   try {
@@ -618,16 +632,31 @@ async function drawZenBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   if (!(await read($, zenOn)) || t === null) return null
 
   const theme = await read($, zenTheme)
-  const colors = colorsFor(theme, await read($, zenCustom))
+  const custom = await read($, zenCustom)
+  const colors = colorsFor(theme, custom)
+  const isPrism = (await read($, zenStyle)) === 'prism'
   const isCollapsed = await read($, zenCollapsed)
   const clock = await read($, now)
   const { Box, Text, Button } = $.ui.resolve(e)
 
   const columns = Math.max(30, e.props.bodyColumns ?? 80)
   const percent = percentOf(t)
-  const mark = t.doneAt !== null ? '✓' : '✶'
+  const mark = t.doneAt !== null ? '✓' : isPrism ? '◆' : '✶'
   const width = Math.max(8, columns - 4 - 16 - 6 - (isCollapsed ? Math.min(30, t.title.length + 2) : 0))
-  const { filled, runs } = barCells(theme, colors.bar, width, percent)
+  // Prism's colors stop flowing once the task is done.
+  const seconds = (t.doneAt ?? clock) / 1000
+  const flow = (k: number) => prismColor(theme, custom, k)
+  const prism = isPrism ? prismCells(theme, custom, width, percent, seconds) : null
+  const { filled, runs } = prism
+    ? { filled: prism.filled, runs: prism.colors.map(color => ({ color, cells: 1 })) }
+    : barCells(theme, colors.bar, width, percent)
+  const border = isPrism ? flow(seconds * 0.12) : colors.border
+  const percentColor = prism?.colors.at(-1) ?? colors.text
+  // Prism runs the title through the window too, unless it is the terminal's own text color.
+  const title =
+    isPrism && colors.text !== 'text'
+      ? [...`${mark} ${t.title}`].map((ch, i) => <Text color={mix(flow(seconds * 0.14 + i * 0.035), '#ffffff', 0.35)}>{ch}</Text>)
+      : `${mark} ${t.title}`
   const bar = (
     <Box>
       {runs.map(r => (
@@ -648,14 +677,14 @@ async function drawZenBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
 
   if (isCollapsed) {
     return (
-      <Box borderStyle="round" borderColor={colors.border} paddingX={1} gap={1}>
+      <Box borderStyle="round" borderColor={border} paddingX={1} gap={1}>
         <Box width={Math.min(30, t.title.length + 2)}>
           <Text color={colors.text} bold wrap="truncate">
-            {mark} {t.title}
+            {title}
           </Text>
         </Box>
         {bar}
-        <Text color={colors.text} bold>{`${percent}%`.padStart(4)}</Text>
+        <Text color={percentColor} bold>{`${percent}%`.padStart(4)}</Text>
         {toggle}
       </Box>
     )
@@ -663,10 +692,10 @@ async function drawZenBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
 
   const shown = visibleSteps(t)
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={colors.border} paddingX={1}>
+    <Box flexDirection="column" borderStyle="round" borderColor={border} paddingX={1}>
       <Box justifyContent="space-between" gap={1}>
         <Text color={colors.text} bold wrap="truncate">
-          {mark} {t.title}
+          {title}
         </Text>
         <Box gap={1} flexShrink={0}>
           <Text dimColor>{elapsed((t.doneAt ?? clock) - t.startedAt)}</Text>
@@ -676,14 +705,21 @@ async function drawZenBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
       <Box gap={1}>
         <Text dimColor>{stepLabel(t).padEnd(14)}</Text>
         {bar}
-        <Text color={colors.text} bold>{`${percent}%`.padStart(4)}</Text>
+        <Text color={percentColor} bold>{`${percent}%`.padStart(4)}</Text>
       </Box>
       {shown.map(step => {
         const isNow = step.status === 'in_progress'
+        const dot = isPrism
+          ? step.status === 'completed'
+            ? <Text color={flow(t.steps.indexOf(step) * 0.22 - seconds * 0.14)}>◆</Text>
+            : isNow
+              ? <Text color={flow(seconds * 0.6)}>◆</Text>
+              : '◇'
+          : step.status === 'completed' ? '●' : isNow ? '◉' : '○'
         return (
           <Box key={`step-${step.id}`} justifyContent="space-between" gap={1}>
             <Text color={isNow ? colors.text : undefined} bold={isNow} dimColor={step.status === 'pending'} wrap="truncate">
-              {step.status === 'completed' ? '●' : isNow ? '◉' : '○'} {step.text}
+              {dot} {step.text}
             </Text>
             <Text color={isNow ? colors.text : undefined} dimColor={!isNow}>
               {step.status === 'completed' ? 'Done' : isNow ? 'Working' : 'Next'}
@@ -820,16 +856,28 @@ async function drawPane($: EngineInterface, e: RenderInput<'Pane'>, panel: Panel
     const isZenOn = await read($, zenOn)
     const zenThemeNow = await read($, zenTheme)
     const custom = await read($, zenCustom)
+    const style = await read($, zenStyle)
     rows.push(
       heading(t('zenMode')),
       chips('zen-onoff', [
         chip('zen-on', t('on'), isZenOn, () => setZenOn($, true)),
         chip('zen-off', t('off'), !isZenOn, () => setZenOn($, false)),
       ]),
+      heading(t('bandStyle')),
+      chips(
+        'zen-style',
+        ZEN_STYLES.map(s => chip(`zen-style-${s}`, t(s === 'prism' ? 'stylePrism' : 'styleClassic'), s === style, () => setZenStyle($, s))),
+      ),
       heading(t('bandColor')),
       ...ZEN_THEMES.map(theme => {
         const isOn = theme === zenThemeNow
-        const colors = theme === 'rainbow' ? RAINBOW.slice(0, 6) : Array(6).fill(colorsFor(theme, custom).bar)
+        // Prism's swatches walk its window; classic's show the flat colors.
+        const colors =
+          style === 'prism'
+            ? Array.from({ length: 6 }, (_, i) => prismColor(theme, custom, theme === 'rainbow' ? i / 6 : i / 10))
+            : theme === 'rainbow'
+              ? RAINBOW.slice(0, 6)
+              : Array(6).fill(colorsFor(theme, custom).bar)
         return (
           <Button key={`zen-theme-${theme}`} plain label={theme} onPress={() => setZenTheme($, theme)}>
             {swatches(colors)}
@@ -1260,16 +1308,22 @@ function stopTicker() {
   ticker = undefined
 }
 
+// Prism's colors flow at ten frames a second; classic only needs the elapsed time.
+async function startTicker($: EngineInterface) {
+  stopTicker()
+  const ms = (await read($, zenStyle)) === 'prism' ? 100 : 1000
+  ticker = $.clock.every(ms, () => {
+    void $.clock.now().then(t => update($, now, () => t))
+  })
+}
+
 // Puts a fresh task on the band and starts its clock.
 async function startTask($: EngineInterface, title: string) {
   const startedAt = await $.clock.now()
   const fresh: ZenTask = { title: title || 'Working', startedAt, doneAt: null, steps: [] }
   await update($, task, () => fresh)
   await update($, now, () => startedAt)
-  stopTicker()
-  ticker = $.clock.every(1000, () => {
-    void $.clock.now().then(t => update($, now, () => t))
-  })
+  await startTicker($)
 }
 
 // The kept settings, back into the session's values: at the session's start,

@@ -2,7 +2,10 @@ export type Panel = 'main' | 'zen' | 'themes' | 'mode' | 'status'
 
 export type ZenTheme = 'blue' | 'dark' | 'light' | 'green' | 'rainbow' | 'custom'
 
-export type ZenColors = { bar: string; text: string; border: string }
+// prism: each cell its own color, flowing; classic: the flat colors from before.
+export type ZenStyle = 'prism' | 'classic'
+
+export type ZenColors ={ bar: string; text: string; border: string }
 
 export type StepStatus = 'pending' | 'in_progress' | 'completed'
 
@@ -42,6 +45,7 @@ declare module 'claude-code' {
       zenOn: boolean
       zenTheme: ZenTheme
       zenCustom: ZenColors
+      zenStyle: ZenStyle
       zenCollapsed: boolean
       task: ZenTask | null
       now: number

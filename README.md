@@ -52,7 +52,7 @@ To update: `claude plugin marketplace update jdsjh-mods && claude plugin update 
 <details>
 <summary><b>Good to know</b></summary>
 
-- **Zen:** Claude gets a `zen_progress` tool to post its plan and update each step. `[–]` shrinks the band to one line. Band colors: blue, dark, light, green, rainbow or custom.
+- **Zen:** Claude gets a `zen_progress` tool to post its plan and update each step. `[–]` shrinks the band to one line. Band colors: blue, dark, light, green, rainbow or custom. The Prism style (the default) gives every cell its own color, flowing along the bar with a glint passing through; Classic keeps the flat colors from before.
 - **Theme:** themes download once to `~/.claude/extra-mods/themes/`. The pick is written as `~/.claude/themes/extra-mods.json` and set in `~/.claude/settings.json`. Restart Claude Code once the first time; after that themes change live. The terminal background follows too, on Windows Terminal (for the session, then restored) and on terminals that take OSC colors (Ghostty, iTerm2, kitty, WezTerm, Terminal.app).
 - **Mode:** the model switch runs Claude Code's own `/model`. The effort level applies to every request and is remembered. A running session's permission mode changes with **shift+tab**; the pick here is saved as `permissions.defaultMode`.
 - **Status:** on by default. It takes your own `statusLine` out of `settings.json` and puts it back when you turn it off. Background shells and monitors show on a second row; click it for `/tasks`.

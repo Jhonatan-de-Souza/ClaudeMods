@@ -52,7 +52,7 @@ Para atualizar: `claude plugin marketplace update jdsjh-mods && claude plugin up
 <details>
 <summary><b>Bom saber</b></summary>
 
-- **Zen:** o Claude ganha uma ferramenta `zen_progress` para postar o plano e atualizar cada etapa. `[–]` encolhe a faixa para uma linha. Cores da faixa: blue, dark, light, green, rainbow ou custom.
+- **Zen:** o Claude ganha uma ferramenta `zen_progress` para postar o plano e atualizar cada etapa. `[–]` encolhe a faixa para uma linha. Cores da faixa: blue, dark, light, green, rainbow ou custom. O estilo Prisma (padrão) dá a cada célula sua própria cor, que flui pela barra com um brilho passando; o Clássico mantém as cores fixas de antes.
 - **Tema:** os temas são baixados uma vez para `~/.claude/extra-mods/themes/`. O escolhido vira `~/.claude/themes/extra-mods.json` e fica salvo no `~/.claude/settings.json`. Reinicie o Claude Code uma vez na primeira vez; depois disso os temas trocam ao vivo. O fundo do terminal acompanha, no Windows Terminal (durante a sessão, depois volta ao normal) e nos terminais que aceitam cores OSC (Ghostty, iTerm2, kitty, WezTerm, Terminal.app).
 - **Modo:** a troca de modelo usa o `/model` do próprio Claude Code. O esforço vale para todas as requisições e fica salvo. O modo de permissão da sessão atual muda com **shift+tab**; a escolha aqui é salva como `permissions.defaultMode`.
 - **Status:** vem ligado. Tira o seu `statusLine` do `settings.json` e coloca de volta quando você desliga. Shells e monitores em segundo plano aparecem numa segunda linha; clique para abrir `/tasks`.

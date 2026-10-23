@@ -13,7 +13,7 @@ import {
   WT_SCHEME,
   type WtSettings,
 } from '../hooks/lib/palette'
-import { barCells, percentOf, stepLabel, visibleSteps } from '../hooks/lib/zen'
+import { barCells, percentOf, prismCells, prismColor, stepLabel, visibleSteps } from '../hooks/lib/zen'
 import { backgroundPill, barFill, cacheState, CACHE_TTL_MS, colorFor, fmtDuration, fmtTokens } from '../hooks/lib/status'
 
 const PLUGIN = 'extra-mods'
@@ -196,6 +196,26 @@ describe('zen math', () => {
     expect(rainbow.runs.reduce((n, r) => n + r.cells, 0)).toBe(40)
   })
 
+  test('prism gives each filled cell its own color, and the colors move with time', async () => {
+    const custom = { bar: '#f97316', text: '#ffedd5', border: '#f97316' }
+    const now = prismCells('blue', custom, 40, 50, 0)
+    expect(now.filled).toBe(20)
+    expect(now.colors).toHaveLength(20)
+    expect(new Set(now.colors).size).toBeGreaterThan(5)
+    expect(prismCells('blue', custom, 40, 50, 1).colors).not.toEqual(now.colors)
+    expect(prismCells('green', custom, 40, 0, 0)).toEqual({ filled: 0, colors: [] })
+  })
+
+  test("prism stays near the theme's own color", async () => {
+    const custom = { bar: '#f97316', text: '#ffedd5', border: '#f97316' }
+    const [r, , b] = [1, 3, 5].map(i => Number.parseInt(prismColor('custom', custom, 0.5).slice(i, i + 2), 16))
+    expect(r).toBeGreaterThan(b!)
+    // dark has no hue to spread: every spot is a grey.
+    const grey = prismColor('dark', custom, 0.3)
+    const [x, y] = [Number.parseInt(grey.slice(1, 3), 16), Number.parseInt(grey.slice(5, 7), 16)]
+    expect(Math.abs(x - y)).toBeLessThan(20)
+  })
+
   test('long lists keep the current step in view', async () => {
     const t = { title: 'x', startedAt: 0, doneAt: null, steps: steps(...Array(5).fill('completed'), 'in_progress', 'pending', 'pending', 'pending', 'pending') }
     const shown = visibleSteps(t)
@@ -250,6 +270,11 @@ describe('toolbox', () => {
     await menu.press({ key: 'tab-mode' })
     await menu.press({ key: 'tab-zen' })
     expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/rainbow ✓/)
+
+    // Prism is the default; classic brings back the flat colors.
+    expect(await isChosen(menu, 'zen-style-prism')).toBe(true)
+    await menu.press({ key: 'zen-style-classic' })
+    expect(await isChosen(menu, 'zen-style-classic')).toBe(true)
     await menu.press({ key: 'zen-off' })
     expect(await isChosen(menu, 'zen-off')).toBe(true)
   })
@@ -333,7 +358,7 @@ describe('toolbox', () => {
 
   test('a /clear closes the menu and brings back the kept Zen mode, effort and model', async ($, on) => {
     // The session after a /clear: every value at its default, the store as it was kept.
-    mock.store(on, { zenOn: true, zenTheme: 'rainbow', effort: 'medium', statusOn: false })
+    mock.store(on, { zenOn: true, zenTheme: 'rainbow', zenStyle: 'classic', effort: 'medium', statusOn: false })
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
     on('ui.open', () => ({ value: { isPlaced: true as const } }))
     const closed: string[] = []
@@ -352,6 +377,7 @@ describe('toolbox', () => {
     await corner.press({ key: 'tools-toggle' })
     expect(await isChosen(menu, 'zen-on')).toBe(true)
     expect((await menu.find({ key: 'zen-theme-rainbow' }))?.text).toMatch(/rainbow ✓/)
+    expect(await isChosen(menu, 'zen-style-classic')).toBe(true)
     await menu.press({ key: 'tab-mode' })
     expect((await menu.find({ key: 'effort-medium' }))?.text).toBe(' medium ')
     expect(await isChosen(menu, 'model-sonnet')).toBe(true)

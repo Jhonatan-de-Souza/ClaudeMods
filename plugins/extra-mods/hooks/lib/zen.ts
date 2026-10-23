@@ -1,8 +1,11 @@
 // Zen mode's look and arithmetic. Pure; the hooks are in register.tsx.
 
-import type { StepStatus, ZenColors, ZenTask, ZenTheme } from '../../types'
+import type { StepStatus, ZenColors, ZenStyle, ZenTask, ZenTheme } from '../../types'
+import { mix } from './palette'
 
 export const ZEN_THEMES: readonly ZenTheme[] = ['blue', 'dark', 'light', 'green', 'rainbow', 'custom']
+
+export const ZEN_STYLES: readonly ZenStyle[] = ['prism', 'classic']
 
 export const RAINBOW = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899']
 
@@ -86,6 +89,78 @@ export const barCells = (theme: ZenTheme, bar: string, width: number, percent: n
     return { color, cells: Math.max(0, Math.min(to, filled) - from) }
   }).filter(r => r.cells > 0)
   return { filled, runs }
+}
+
+// Prism ------------------------------------------------------------------------
+// Each theme's one color opened into a window on the color wheel; every cell
+// takes its own spot in it, and the spots slide with time.
+
+// Hue from → to, saturation, lightness from → to. Rainbow runs the whole wheel.
+type ColorWindow = readonly [number, number, number, number, number]
+
+const WINDOWS: Record<Exclude<ZenTheme, 'custom'>, ColorWindow> = {
+  blue: [195, 245, 92, 50, 72],
+  green: [125, 175, 80, 42, 66],
+  // Chrome: no hue to spread, so only the shade moves.
+  dark: [220, 220, 8, 42, 94],
+  light: [200, 250, 90, 70, 86],
+  rainbow: [0, 300, 95, 58, 58],
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+
+const hsl = (h: number, s: number, l: number): string => {
+  const [sat, light] = [s / 100, l / 100]
+  const f = (n: number) => {
+    const k = (n + (((h % 360) + 360) % 360) / 30) % 12
+    const v = light - sat * Math.min(light, 1 - light) * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+    return Math.round(v * 255).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
+
+const toHsl = (hex: string): [number, number, number] => {
+  const [r, g, b] = [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number]
+  const [max, min] = [Math.max(r, g, b), Math.min(r, g, b)]
+  const [l, d] = [(max + min) / 2, max - min]
+  if (d === 0) return [0, 0, l * 100]
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return [(h * 60 + 360) % 360, (d / (1 - Math.abs(2 * l - 1))) * 100, l * 100]
+}
+
+// A custom bar color's window: ±25° around its hue, a shade either side.
+const windowOf = (bar: string): ColorWindow => {
+  if (!/^#[0-9a-f]{6}$/i.test(bar)) return WINDOWS.blue
+  const [h, s, l] = toHsl(bar)
+  if (s < 12) return [h, h, s, clamp(l - 30, 25, 60), clamp(l + 20, 70, 95)]
+  return [h - 25, h + 25, clamp(s, 60, 95), clamp(l - 12, 35, 60), clamp(l + 14, 60, 85)]
+}
+
+const windowFor = (theme: ZenTheme, custom: ZenColors) => (theme === 'custom' ? windowOf(custom.bar) : WINDOWS[theme])
+
+// Folds any number into 0 → 1 → 0, so a narrow window flows back and forth with no seam.
+const fold = (x: number) => 1 - Math.abs(2 * (((x % 1) + 1) % 1) - 1)
+
+// The color at spot `k` of the theme's window; `k` may be any number.
+export const prismColor = (theme: ZenTheme, custom: ZenColors, k: number): string => {
+  const [h1, h2, s, l1, l2] = windowFor(theme, custom)
+  if (theme === 'rainbow') return hsl(h1 + (h2 - h1) * k, s, l1)
+  const f = fold(k)
+  return hsl(h1 + (h2 - h1) * f, s, l1 + (l2 - l1) * f)
+}
+
+// One color per filled cell of a bar `width` wide at `seconds`: the window
+// flowing along the bar, and a white glint sweeping through it.
+export const prismCells = (theme: ZenTheme, custom: ZenColors, width: number, percent: number, seconds: number) => {
+  const filled = Math.round((width * clamp(percent, 0, 100)) / 100)
+  const glint = (((seconds * 0.55) % 1.5) - 0.25) * Math.max(filled, 1)
+  const colors = Array.from({ length: filled }, (_, i) => {
+    const k = theme === 'rainbow' ? i / width - seconds / 6 : (i / width) * 0.9 - seconds * 0.14
+    const away = Math.abs(i - glint)
+    const color = prismColor(theme, custom, k)
+    return away < 3 ? mix(color, '#ffffff', (1 - away / 3) * 0.75) : color
+  })
+  return { filled, colors }
 }
 
 // At most `room` steps, keeping the current one in view.
