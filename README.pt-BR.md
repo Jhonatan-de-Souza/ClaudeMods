@@ -1,24 +1,44 @@
-# Claude Mods
+<h1 align="center">Claude Mods</h1>
+
+<p align="center">Uma barra lateral para o <a href="https://claude.com/claude-code">Claude Code</a>: modo Zen, temas, modelo e esforço, e uma linha de status.</p>
 
 <p align="center"><a href="README.md">English</a> · <b>Português</b></p>
 
-Uma barra lateral para o [Claude Code](https://claude.com/claude-code): modo Zen, temas, modelo e esforço, e uma linha de status.
+<p align="center"><a href="#zen">Zen</a> · <a href="#tema">Tema</a> · <a href="#modo">Modo</a> · <a href="#status">Status</a> · <a href="#instalação">Instalação</a></p>
 
-### Zen
+## Zen
 
 Esconde todas as chamadas de ferramentas e os blocos gigantes de código, e mostra só uma barra de progresso e pequenos relatos do andamento.
 
-<img src="docs/screenshots/zen-demo.gif" alt="Modo Zen com a faixa verde: o Claude manda atualizações curtas enquanto a barra enche passo a passo" width="720">
+Escolha o estilo e a cor na aba Zen. O **Prisma** (o padrão) dá a cada célula a sua cor, fluindo pela barra com um brilho passando. O **Clássico** mantém as cores chapadas.
 
-<img src="docs/screenshots/zen.png" alt="Aba Zen" width="360">
+**Prisma** · verde
 
-### Tema
+<img src="docs/screenshots/zen-prism-green.gif" alt="Estilo Prisma, faixa verde: as cores fluem pela barra conforme os passos terminam" width="560">
+
+**Prisma** · arco-íris
+
+<img src="docs/screenshots/zen-prism-rainbow.gif" alt="Estilo Prisma, faixa arco-íris: as cores fluem por toda a roda" width="560">
+
+**Clássico** · verde
+
+<img src="docs/screenshots/zen-classic-green.gif" alt="Estilo Clássico, faixa verde: uma cor chapada" width="560">
+
+**Clássico** · arco-íris
+
+<img src="docs/screenshots/zen-classic-rainbow.gif" alt="Estilo Clássico, faixa arco-íris: blocos de cor chapada" width="560">
+
+Cores da faixa: blue, dark, light, green, rainbow ou custom.
+
+<img src="docs/screenshots/zen.png" alt="Aba Zen com as opções de estilo da faixa" width="320">
+
+## Tema
 
 Aplica qualquer um dos mais de 100 temas do [terminalcolors.com](https://terminalcolors.com) com um clique.
 
 <img src="docs/screenshots/theme-demo.gif" alt="Trocando de tema na aba Tema: a sessão inteira muda de cor na hora" width="720">
 
-### Modo
+## Modo
 
 Troca o modelo e o esforço, e escolhe o modo em que as novas sessões começam.
 
@@ -26,7 +46,7 @@ Troca o modelo e o esforço, e escolhe o modo em que as novas sessões começam.
 
 <img src="docs/screenshots/mode.png" alt="Aba Modo" width="360">
 
-### Status
+## Status
 
 Mostra modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache numa linha só.
 
@@ -52,7 +72,7 @@ Para atualizar: `claude plugin marketplace update jdsjh-mods && claude plugin up
 <details>
 <summary><b>Bom saber</b></summary>
 
-- **Zen:** o Claude ganha uma ferramenta `zen_progress` para postar o plano e atualizar cada etapa. `[–]` encolhe a faixa para uma linha. Cores da faixa: blue, dark, light, green, rainbow ou custom. O estilo Prisma (padrão) dá a cada célula sua própria cor, que flui pela barra com um brilho passando; o Clássico mantém as cores fixas de antes.
+- **Zen:** o Claude ganha uma ferramenta `zen_progress` para postar o plano e atualizar cada etapa. `[–]` encolhe a faixa para uma linha. Cores da faixa: blue, dark, light, green, rainbow ou custom.
 - **Tema:** os temas são baixados uma vez para `~/.claude/extra-mods/themes/`. O escolhido vira `~/.claude/themes/extra-mods.json` e fica salvo no `~/.claude/settings.json`. Reinicie o Claude Code uma vez na primeira vez; depois disso os temas trocam ao vivo. O fundo do terminal acompanha, no Windows Terminal (durante a sessão, depois volta ao normal) e nos terminais que aceitam cores OSC (Ghostty, iTerm2, kitty, WezTerm, Terminal.app).
 - **Modo:** a troca de modelo usa o `/model` do próprio Claude Code. O esforço vale para todas as requisições e fica salvo. O modo de permissão da sessão atual muda com **shift+tab**; a escolha aqui é salva como `permissions.defaultMode`.
 - **Status:** vem ligado. Tira o seu `statusLine` do `settings.json` e coloca de volta quando você desliga. Shells e monitores em segundo plano aparecem numa segunda linha; clique para abrir `/tasks`.
