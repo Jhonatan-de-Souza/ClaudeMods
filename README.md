@@ -1,4 +1,4 @@
-<h1 align="center">Claude Mods</h1>
+<h1 align="center"><img src="docs/screenshots/claudemods_icon.png" alt="Claude Mods" width="36" height="36" valign="middle"> Claude Mods</h1>
 
 <p align="center">A sidebar for <a href="https://claude.com/claude-code">Claude Code</a>: Zen mode, themes, model and effort, and a status line.</p>
 
