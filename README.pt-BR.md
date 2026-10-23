@@ -50,7 +50,7 @@ Troca o modelo e o esforço, e escolhe o modo em que as novas sessões começam.
 
 Mostra modelo, pasta, branch, contexto, limites de 5h/7d e estado do cache numa linha só.
 
-<img src="docs/screenshots/status-demo.png" alt="A linha de status abaixo do prompt, com um shell rodando em segundo plano" width="720">
+<img src="docs/screenshots/status-demov2.png" alt="A linha de status abaixo do prompt, com um shell rodando em segundo plano" width="720">
 
 <img src="docs/screenshots/status.png" alt="Aba Status" width="360">
 

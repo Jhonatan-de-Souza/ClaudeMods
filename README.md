@@ -50,7 +50,7 @@ Switches the model and effort, and picks the mode new sessions start in.
 
 Shows model, folder, branch, context, 5h/7d limits and cache state on one row.
 
-<img src="docs/screenshots/status-demo.png" alt="The status line under the prompt, with a background shell running" width="720">
+<img src="docs/screenshots/status-demov2.png" alt="The status line under the prompt, with a background shell running" width="720">
 
 <img src="docs/screenshots/status.png" alt="Status tab" width="360">
 
