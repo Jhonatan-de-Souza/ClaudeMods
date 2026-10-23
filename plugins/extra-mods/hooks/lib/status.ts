@@ -50,8 +50,13 @@ const BACKGROUND_PILL = /\b\d+ (?:shells?(?:, \d+ monitors?)?|(?:Artifact commen
 export const backgroundPill = (hint: string): string | null => hint.match(BACKGROUND_PILL)?.[0] ?? null
 
 // Detail levels, most detailed first: bars and reset times, then no bars,
-// then no reset times. The widest that fits `columns` wins.
-export type Detail = 0 | 1 | 2
+// then only the 5h reset time, then no reset times. The widest that fits
+// `columns` wins.
+export type Detail = 0 | 1 | 2 | 3
+
+// Whether the limit called `label` shows its reset time at `detail`: the 5h
+// one is the last to go, since it says when the session frees up.
+export const showsReset = (label: string, detail: Detail): boolean => (label === '5h' ? detail < 3 : detail < 2)
 
 export const statsWidth = (
   ctxText: string,
@@ -62,7 +67,7 @@ export const statsWidth = (
   const bar = detail === 0 ? BAR_WIDTH + 1 : 0
   const sep = 5
   let width = 4 + bar + ctxText.length
-  for (const l of limits) width += sep + l.label.length + 1 + bar + l.percentText.length + (detail < 2 ? l.resetText.length : 0)
+  for (const l of limits) width += sep + l.label.length + 1 + bar + l.percentText.length + (showsReset(l.label, detail) ? l.resetText.length : 0)
   if (cacheText !== '') width += sep + cacheText.length
   return width
 }

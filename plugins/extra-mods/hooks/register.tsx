@@ -14,6 +14,7 @@ import {
   fmtDuration,
   fmtTokens,
   LIMIT_LABELS,
+  showsReset,
   STATUS_CYAN,
   STATUS_GREEN,
   STATUS_RED,
@@ -95,6 +96,9 @@ const PANE_BACKGROUND = '#0b0b0b'
 const MENU_NAME = 'extra-mods'
 // Room the engine's own mode label takes left of the hint row (⏵⏵ auto mode on · ).
 const MODE_LABEL_COLUMNS = 22
+// How far the stats row is pulled left so it starts under the mode label
+// (measured on `auto mode on ·`; the other labels differ by a few columns).
+const STATS_SHIFT = 17
 // The slug of the Claude Code theme the mod writes: ~/.claude/themes/extra-mods.json.
 const CLAUDE_THEME = 'extra-mods'
 
@@ -1212,27 +1216,32 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
   }))
   const cacheText = cache === null ? '' : `● cache ${cache}`
   const model = prettyModel(snapshot.model)
-  const head = `${model} · ${snapshot.dir}${snapshot.branch === '' ? '' : ` · ${snapshot.branch}`}`
+  const headText = `${model} · ${snapshot.dir}${snapshot.branch === '' ? '' : ` · ${snapshot.branch}`}`
   // One row beside the engine's mode label (about MODE_LABEL_COLUMNS wide):
-  // the most detailed level that leaves room for the button; past the least
-  // detailed one, the model and folder go too.
-  const room = columns - MODE_LABEL_COLUMNS - label.length - 4
-  const fits = (d: Detail, withHead: boolean) =>
-    statsWidth(`${ctxPercent}%${ctxTokens}`, limits, cacheText, d) + (withHead ? head.length + 5 : 0) <= room
-  const showHead = fits(2, true)
-  const detail: Detail = ([0, 1, 2] as const).find(d => fits(d, showHead)) ?? 2
+  // the most detailed level that still shows the 5h reset time and leaves room
+  // for the model, folder and the button. When none does, two rows: the model,
+  // folder and branch on the first, and on the second, pulled left under the
+  // label (so it has that width back), the stats at the most detailed level
+  // that fits, down to no reset times at all.
+  const statsAt = (d: Detail) => statsWidth(`${ctxPercent}%${ctxTokens}`, limits, cacheText, d)
+  const oneRowRoom = columns - MODE_LABEL_COLUMNS - label.length - 4
+  const oneRowDetail = ([0, 1, 2] as const).find(d => statsAt(d) + headText.length + 5 <= oneRowRoom)
+  const isOneRow = oneRowDetail !== undefined
+  const twoRowRoom = columns - (MODE_LABEL_COLUMNS - STATS_SHIFT) - label.length - 4
+  const detail: Detail = oneRowDetail ?? ([0, 1, 2, 3] as const).find(d => statsAt(d) <= twoRowRoom) ?? 3
+
+  const headRow = (
+    <Text key="head" wrap="truncate">
+      <Text color={STATUS_CYAN}>{model}</Text>
+      <Text dimColor> · </Text>
+      <Text>{snapshot.dir}</Text>
+      {snapshot.branch !== '' && <Text dimColor> · </Text>}
+      {snapshot.branch !== '' && <Text color={STATUS_GREEN}>{snapshot.branch}</Text>}
+      {isOneRow && sep}
+    </Text>
+  )
 
   const stats = [
-    showHead && (
-      <Text key="head">
-        <Text color={STATUS_CYAN}>{model}</Text>
-        <Text dimColor> · </Text>
-        <Text>{snapshot.dir}</Text>
-        {snapshot.branch !== '' && <Text dimColor> · </Text>}
-        {snapshot.branch !== '' && <Text color={STATUS_GREEN}>{snapshot.branch}</Text>}
-        {sep}
-      </Text>
-    ),
     <Text key="ctx">
       <Text>ctx </Text>
       {detail === 0 && bar(ctxPercent, colorFor(ctxPercent))}
@@ -1245,7 +1254,7 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
         <Text>{l.label} </Text>
         {detail === 0 && bar(l.percent, colorFor(l.percent))}
         <Text bold color={colorFor(l.percent)}>{l.percentText}</Text>
-        {detail < 2 && <Text dimColor>{l.resetText}</Text>}
+        {showsReset(l.label, detail) && <Text dimColor>{l.resetText}</Text>}
       </Text>
     )),
     cache !== null && (
@@ -1258,24 +1267,29 @@ async function drawPromptHint($: EngineInterface, e: RenderInput<'PromptHint'>) 
   ]
 
   const statsRow = (
-    <Box justifyContent="space-between" flexGrow={1} gap={1}>
-      <Text wrap="truncate">{stats}</Text>
+    <Box justifyContent="space-between" flexGrow={1} gap={1} marginLeft={isOneRow ? 0 : -STATS_SHIFT}>
+      <Text wrap="truncate">
+        {isOneRow && headRow}
+        {stats}
+      </Text>
       {button}
     </Box>
   )
   // The status line takes the hint's place, pill and all, so the pill gets a
-  // row of its own under it. Still no wider than the space the label leaves.
+  // row of its own under the stats. Still no wider than the space the label leaves.
   const pill = backgroundPill(e.props.hint)
-  if (pill === null) return statsRow
   return (
     <Box flexDirection="column" flexGrow={1}>
+      {!isOneRow && headRow}
       {statsRow}
-      <Box gap={1}>
-        <Button key="background-tasks" plain label={`⎿ ${pill}`} onPress={() => openTasks($)} />
-        <Text dimColor wrap="truncate">
-          · /tasks to manage
-        </Text>
-      </Box>
+      {pill !== null && (
+        <Box gap={1}>
+          <Button key="background-tasks" plain label={`⎿ ${pill}`} onPress={() => openTasks($)} />
+          <Text dimColor wrap="truncate">
+            · /tasks to manage
+          </Text>
+        </Box>
+      )}
     </Box>
   )
 }
